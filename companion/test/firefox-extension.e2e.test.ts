@@ -14,7 +14,8 @@ import { callers, companionTab, ROOT } from './harness.ts';
 
 describe.skipIf(process.env.FIREFOX_EXTENSION_E2E !== '1')('Firefox shared-tab extension e2e', () => {
   let browser: DirectFirefox, client: Client, http: Server, temp: string, appUrl: string;
-  let dashboardId: number, nativeTabId: number, tabId: number;
+  let dashboardId: number, dashboardContext: string, nativeTabId: number, tabId: number;
+  let privilegedInput = true;
   let call: ReturnType<typeof callers>['call'], ok: ReturnType<typeof callers>['ok'];
   const evaluate = async (expression: string) => {
     const result = await browser.cdp(dashboardId, 'Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true, userGesture: true });
@@ -56,7 +57,9 @@ describe.skipIf(process.env.FIREFOX_EXTENSION_E2E !== '1')('Firefox shared-tab e
     ({ server: http, url: appUrl } = await startTestServer(join(ROOT, 'test-apps')));
     http.prependListener('request', (req, res) => { if (req.url?.includes('strict-csp')) res.setHeader('Content-Security-Policy', "script-src 'none'; object-src 'none'"); });
     browser = new DirectFirefox(profile, 'extension-e2e');
-    await browser.launch({ headless: true, browserPath: realpathSync(findFirefox(process.env.FIREFOX)), downloadDir: join(temp, 'downloads'), url: appUrl });
+    // Recent Firefox builds gate privileged BiDi commands such as webExtension.install
+    // behind system access; the flag is ignored by older builds.
+    await browser.launch({ headless: true, browserPath: realpathSync(findFirefox(process.env.FIREFOX)), args: ['-remote-allow-system-access'], downloadDir: join(temp, 'downloads'), url: appUrl });
     const installed = await browser.bidi('webExtension.install', { extensionData: { type: 'path', path: extension } });
     assert.equal(installed.extension, extensionId);
     // Firefox blocks remote navigation to addon URLs and omits their navigation events.
@@ -65,10 +68,15 @@ describe.skipIf(process.env.FIREFOX_EXTENSION_E2E !== '1')('Firefox shared-tab e
       const tree = await browser.bidi('browsingContext.getTree', {});
       const dashboard = tree.contexts.find((context: any) => context.url === `moz-extension://${uuid}/app.html`);
       const driverTab = dashboard && browser.listTabs().find((tab) => tab.targetId === dashboard.context);
-      if (driverTab) { dashboardId = driverTab.id; break; }
+      if (driverTab) { dashboardId = driverTab.id; dashboardContext = dashboard.context; break; }
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
     assert.ok(dashboardId, `install opens the Firefox dashboard: ${JSON.stringify(await browser.bidi('browsingContext.getTree', {}))}`);
+    // Recent Firefox builds reject synthetic input, element lookup, screenshots and
+    // activation on privileged (moz-extension) pages. Dashboard gestures only work where allowed.
+    try {
+      await browser.bidi('input.performActions', { context: dashboardContext, actions: [{ type: 'none', id: 'probe', actions: [{ type: 'pause', duration: 0 }] }] });
+    } catch { privilegedInput = false; }
     await waitFor('typeof browser !== "undefined" && !!browser.runtime?.sendMessage && !!document.querySelector("#main h1")');
     await evaluate('location.hash = "#/tabs"');
     await waitFor('document.querySelector("#main h1")?.textContent === "Tabs"');
@@ -92,7 +100,23 @@ describe.skipIf(process.env.FIREFOX_EXTENSION_E2E !== '1')('Firefox shared-tab e
     if (temp) rmSync(temp, { recursive: true, force: true });
   }, 30_000);
 
+  test('install, connect and report state without dashboard gestures', async () => {
+    assert.equal((await client.listTools()).tools.length, 43);
+    assert.match(await ok('browser_status'), /Firefox/i);
+    const denied = await call('browser_snapshot', { tabId });
+    assert.ok(denied.err && /shared|allowed|usable/i.test(denied.txt), denied.txt);
+    assert.equal(await evaluate('browser.permissions.contains({permissions:["userScripts"]})'), false);
+    await waitFor('browser.runtime.sendMessage({type:"getState"}).then(s => s.graph?.browsers.length === 1 && s.graph?.agents.length === 1)');
+    const graphState = await message({ type: 'getState' });
+    assert.equal(graphState.graphEnabled, true, 'connection graph works before Firefox automation permissions are granted');
+    assert.equal(graphState.graph.browsers[0].id, graphState.graph.thisBrowserId);
+    assert.match(graphState.graph.browsers[0].name, /Firefox/);
+    assert.deepEqual(graphState.graph.agents.map((agent: any) => agent.name), ['firefox-extension-e2e']);
+    assert.equal(graphState.automationReady, false, 'page automation stays off until the user grants it in the dashboard');
+  });
+
   test('dashboard sharing enables normal page tools; unshare and Stop revoke access', async () => {
+    if (!privilegedInput) { console.log('  (this Firefox blocks synthetic input on its privileged dashboard page; skipping dashboard-gesture coverage)'); return; }
     assert.equal((await client.listTools()).tools.length, 43);
     assert.match(await ok('browser_status'), /Firefox/i);
     const denied = await call('browser_snapshot', { tabId });
