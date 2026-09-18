@@ -3,7 +3,7 @@ type GraphBrand = { name: string; label: string; src: string; darkSrc?: string }
 // Tuple: [pattern, product name, logo, dark logo?, display label?]. The display
 // label defaults to the reported name; set it when the reported name is an
 // internal codename with no user-facing meaning (e.g. tbh -> Muse Code).
-const brands: Record<'agent' | 'browser', [RegExp, string, string, string?, string?][] > = {
+const brands: Record<'agent' | 'browser', [RegExp, string, string, string?, string?][]> = {
   agent: [
     [/^claude(?:[\s_/-]|$)/i, 'Claude', 'clients/claude.png'],
     [/^(?:openai[\s_-])?codex(?:[\s_/-]|$)/i, 'Codex', 'clients/codex.svg'],

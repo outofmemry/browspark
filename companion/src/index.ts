@@ -76,7 +76,8 @@ const stopGraph = installConnectionGraph(bridge, sessions);
 // refuses requests that carry a web page's Origin.
 const httpSessions = new Map<string, StreamableHTTPServerTransport>();
 // A client that dies without DELETE would stay in the graph forever: SDK clients hold a GET event stream open, so
-// treat that stream dropping (and not returning within the grace period) as the client having gone away.
+// treat that stream dropping (and not returning within the grace period) as the client having gone away. Once a
+// session has had a stream, its POSTs count too, so a client that keeps calling tools without a stream stays alive.
 const httpStreams = new Map<string, { open: number; gone?: ReturnType<typeof setTimeout> }>();
 const HTTP_STREAM_GRACE_MS = Number(process.env.BROWSPARK_HTTP_GRACE_MS ?? 60_000);
 // Populate the extension's catalog before any agent connects; reuse this server for the first HTTP client.
@@ -93,9 +94,10 @@ bridge.mcpHandler = async (req, res) => {
     await server.connect(t);
     transport = t;
   }
-  if (req.method === 'GET' && typeof sid === 'string') {
+  if (typeof sid === 'string' && (req.method === 'GET' || httpStreams.has(sid))) {
     const s = httpStreams.get(sid) ?? { open: 0 }; httpStreams.set(sid, s); s.open++; clearTimeout(s.gone);
-    const t = transport; res.once('close', () => { if (--s.open === 0) s.gone = setTimeout(() => { console.error(`browspark: http client session ${sid.slice(0, 8)} went away`); void t.close(); }, HTTP_STREAM_GRACE_MS); });
+    // The identity check skips re-arming after the session closed (DELETE, or the grace timer itself).
+    const t = transport; res.once('close', () => { if (--s.open === 0 && httpStreams.get(sid) === s) s.gone = setTimeout(() => { console.error(`browspark: http client session ${sid.slice(0, 8)} went away`); void t.close(); }, HTTP_STREAM_GRACE_MS); });
   }
   await transport.handleRequest(req, res);
 };

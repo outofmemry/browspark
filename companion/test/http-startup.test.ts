@@ -54,7 +54,15 @@ test('HTTP-only startup serves the full catalog and graph before an agent connec
     await new Promise(resolve => setTimeout(resolve, 1200));
     assert.deepEqual(graph.agents.map(agent => agent.name), ['HTTP startup test']);
     // A client that vanishes without DELETE (crash, killed test run) must leave the graph once its event stream is gone.
+    const mcpUrl = url.replace('ws:', 'http:') + '/mcp', sessionId = transport.sessionId!;
     await transport.close(); transport = undefined;
+    // ...but not while it keeps calling tools without a stream: POSTs outlasting the grace period keep it alive.
+    for (let i = 0; i < 6; i++) {
+      const r = await fetch(mcpUrl, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-session-id': sessionId }, body: JSON.stringify({ jsonrpc: '2.0', id: 100 + i, method: 'tools/list' }) });
+      assert.equal(r.status, 200); await r.text();
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    assert.equal(graph.agents.length, 1, 'a streamless client that keeps POSTing stays in the graph');
     await new Promise(resolve => setTimeout(resolve, 2000));
     assert.equal(graph.agents.length, 0, 'a vanished HTTP client is removed after the grace period');
   } finally {
@@ -67,4 +75,4 @@ test('HTTP-only startup serves the full catalog and graph before an agent connec
       await exited;
     }
   }
-}, 10_000);
+}, 15_000);
