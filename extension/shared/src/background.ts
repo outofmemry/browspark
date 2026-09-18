@@ -319,7 +319,11 @@ api.runtime.onMessage.addListener((msg: PopupMsg, sender, reply) => {
       case 'stop': await stop(); break;
       case 'clearLog': recent.length = 0; break;
       case 'setShared':
-        for (const id of msg.tabIds) { if (msg.shared) { excluded.delete(id); shared.add(id); } else { excluded.add(id); shared.delete(id); held.delete(id); await detach(id); } }
+        // Unsharing detaches the debugger immediately, but a hold from an inspection
+        // session or policy survives: re-sharing re-attaches on demand and the hold
+        // protects it again. Holds are released explicitly (tabs.hold), on Stop, or
+        // when the tab closes.
+        for (const id of msg.tabIds) { if (msg.shared) { excluded.delete(id); shared.add(id); } else { excluded.add(id); shared.delete(id); await detach(id); } }
         await api.storage.session.set({ shared: [...shared], excluded: [...excluded] });
         pushTabs(); break;
       case 'setDevMode': devMode = msg.mode; await api.storage.local.set({ devMode }); sendToolPolicy(); break;
@@ -372,7 +376,7 @@ debuggerApi.onEvent.addListener((source, method, params) => {
   }
   evt('cdp.event', { tabId, method, params, sessionId });
 });
-/** The user pressed Stop on the overlay: revoke the tab exactly as unsharing it from the dashboard would. */
+/** The user pressed Stop on the overlay: revoke the tab and release any inspection hold. Unlike unsharing (which preserves holds so re-sharing resumes protection), Stop is a full reset for the tab. */
 async function stopTab(tabId: number) {
   excluded.add(tabId); shared.delete(tabId); agentTabs.delete(tabId); held.delete(tabId);
   await api.storage.session.set({ shared: [...shared], excluded: [...excluded] });
