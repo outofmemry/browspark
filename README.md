@@ -37,7 +37,7 @@ claude mcp add browspark -- bunx browspark-mcp@latest
 
 Codex, OpenCode, Cursor, Antigravity and Muse Code are covered in the [connect guide](https://docs.browspark.krishm.dev/connect/agents).
 
-**2. Get the extension.** Download `browspark-extension.zip` from the [latest release](https://github.com/uncaughterrs/browspark/releases/latest) and unzip it, or clone this repo and run `bun install && bun run build` to use the `extension/` folder. Open `chrome://extensions` in Chrome or `brave://extensions` in Brave, turn on Developer mode, choose **Load unpacked** and select that folder. Repeat in each browser profile you want to connect; they can all use the same companion.
+**2. Get the extension.** Download `browspark-extension.zip` from the [latest release](https://github.com/uncaughterrs/browspark/releases/latest) and unzip it, or clone this repo and run `bun install && bun run build` to use the `dist/chromium-extension/` folder. Open `chrome://extensions` in Chrome or `brave://extensions` in Brave, turn on Developer mode, choose **Load unpacked** and select that folder. Repeat in each browser profile you want to connect; they can all use the same companion.
 
 **3. Share tabs.** Open each extension dashboard and share the tabs the agent may use. The [Graph page](https://docs.browspark.krishm.dev/dashboard/graph) shows agents and browsers on a draggable canvas with logos and animated connections; toggle it in Settings. Ask the agent to call `browser_status` to select a listed `tabId` or use its `browserId` when opening a new tab. Sharing permissions stay separate in each browser profile.
 
@@ -69,7 +69,7 @@ cd docs && bunx mint dev # preview the docs site
 
 Install the browsers needed for each acceptance suite; the [development guide](https://docs.browspark.krishm.dev/reference/development) lists executable overrides. Run browser suites one at a time.
 
-Layout: `companion/` (MCP server, transports, devtools modules), `extension/` (MV3 dashboard and worker), `shared/` (wire protocol), `docs/` (Mintlify site), `frontend/` (landing page), `test-apps/` (deterministic pages for tests).
+Layout: `companion/` (MCP server, transports, devtools modules), `extension/` (MV3 dashboard and worker: `shared/` source plus `chromium/` and `firefox/` manifests), `shared/` (wire protocol), `docs/` (Mintlify site), `frontend/` (landing page), `test-apps/` (deterministic pages for tests).
 
 ## Contributing
 Before contributing, please read the guidelines in [CONTRIBUTING.md](CONTRIBUTING.md).

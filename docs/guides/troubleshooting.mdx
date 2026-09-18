@@ -85,6 +85,7 @@ The element left the DOM or the page navigated. Snapshot again.
 - On Chromium, the page may be paused on a breakpoint: `devtools_debugger {action: "resume"}`.
 - The element may be hidden or zero-size: check with `devtools_elements {action: "box"}` on Chromium, or inspect `getBoundingClientRect()` through `devtools_evaluate` on Firefox and Zen.
 - If the tool reports that foreground interaction is needed, select that tab yourself or turn off **Settings → Browser behavior → Work in background** in its dashboard, then retry.
+- On recent Chromium builds, synthetic input can stop reaching a background tab after a navigation until the tab is visible again. If clicks silently do nothing right after `browser_navigate`, activate the tab (or turn off Work in background) and retry.
 
 ## Keyboard shortcuts do not reach the browser
 

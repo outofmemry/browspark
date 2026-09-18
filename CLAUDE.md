@@ -10,7 +10,7 @@ Bun for everything (no node/npm/npx). Run from the repo root.
 
 ```bash
 bun install
-bun run build                # Chromium extension/ + Firefox dist/firefox-extension/ (reload after)
+bun run build                # dist/chromium-extension/ + dist/firefox-extension/ (reload after)
 bun run typecheck            # tsc for companion, extension and shared
 bun test                     # unit + bridge tests only (no Chrome)
 bun run test:e2e             # E2E=1: launches throwaway Chromes; build the extension first
@@ -32,7 +32,7 @@ E2E needs Chrome at `/Applications/Google Chrome.app/...` or `CHROME=<path>`. E2
 Two processes, one wire protocol:
 
 - **Companion** (`companion/src`, `bunx browspark-mcp@latest`): the MCP server. Speaks MCP over stdio to the launching client and, always, Streamable HTTP at `http://127.0.0.1:9223/mcp`. Owns the WebSocket bridge the extension connects to on the same port.
-- **Extension** (`extension/`, MV3): Chromium uses a service worker and `chrome.debugger` without host permissions. Firefox 153+ and compatible Zen builds use `background.scripts`, `<all_urls>` host permission for native tab screenshots (automation remains HTTP/HTTPS-only) and optional `userScripts` permission granted from the shared dashboard. `firefox-debugger.ts` adapts supported commands to WebExtension APIs and a sandboxed user-script world with messaging disabled; page code must never run with extension APIs. Firefox extension mode has documented exceptions, including native debugging, network capture, trusted input and the in-page overlay.
+- **Extension** (`extension/`: `shared/` source plus `chromium/` and `firefox/` manifests, MV3): Chromium uses a service worker and `chrome.debugger` without host permissions. Firefox 153+ and compatible Zen builds use `background.scripts`, `<all_urls>` host permission for native tab screenshots (automation remains HTTP/HTTPS-only) and optional `userScripts` permission granted from the shared dashboard. `firefox-debugger.ts` adapts supported commands to WebExtension APIs and a sandboxed user-script world with messaging disabled; page code must never run with extension APIs. Firefox extension mode has documented exceptions, including native debugging, network capture, trusted input and the in-page overlay.
 - `shared/protocol.ts` is the contract: `Req/Res/Evt` over one socket, `PROTOCOL_VERSION`, `ReqMethod` names, and the two predicates both sides use (`isNewTab`, `unsupportedReason`).
 
 Two ways to reach a page, hidden behind one layer:
@@ -52,8 +52,8 @@ Key files when something misbehaves:
 - `companion/src/index.ts` wiring, relay and combined tool policy; `bridge.ts` Origin check (web pages refused), handshake close codes (4001 no hello, 4002 version), per-profile connections and native/public tab-ID translation. Disconnect cleanup must stay scoped to that browser's tabs.
 - `companion/src/page.ts` snapshot/refs (`window.__bmcp`, refs never reused, wiped on navigation), dialog racing, New Tab `tabs.prepare` dance.
 - `companion/src/devtools/capture.ts` session start/stop; `intercept.ts` is the single owner of the Fetch domain (policies, mocks, overrides).
-- `extension/src/background.ts` the trust boundary: `isShared` is checked on every command and again after attach; idle detach after 30 s unless held by a session; Background Mode defaults on and targets assigned tabs without activation. Settings can restore foreground input/screenshots.
-- `extension/src/app.ts` polls the worker every second and re-renders through a DOM morph; `state.ts` is the dashboard↔worker contract.
+- `extension/shared/src/background.ts` the trust boundary: `isShared` is checked on every command and again after attach; idle detach after 30 s unless held by a session; Background Mode defaults on and targets assigned tabs without activation. Settings can restore foreground input/screenshots.
+- `extension/shared/src/app.ts` polls the worker every second and re-renders through a DOM morph; `state.ts` is the dashboard↔worker contract.
 
 ## Invariants to preserve
 
@@ -81,7 +81,7 @@ Any feature, tool, or installation change must be reflected everywhere users see
 2. **README.md**: keep it to the quick start; detail lives on the docs site. Installation is Option 1 (`setup.sh`) and Option 2 (manual).
 3. **Landing page** (`frontend/`): install steps, setup one-liner, tool counts, meta. Run `bun run --cwd frontend test`.
 4. **`setup.sh`**: any change to how the companion is run or where the extension comes from. Verify with `bash setup.sh --test`.
-5. **Versions**, kept identical: `package.json`, `aliases/browspark/package.json`, `extension/manifest.json`, `extension/manifest.firefox.json`. Then `bun run package` for both ZIPs.
+5. **Versions**, kept identical: `package.json`, `aliases/browspark/package.json`, `extension/chromium/manifest.json`, `extension/firefox/manifest.json`. Then `bun run package` for both ZIPs.
 6. **Publish**: `bun run release` publishes `browspark-mcp` and the `browspark` alias to npm. Create a GitHub release tagged with the version and attach `dist/browspark-extension.zip` and `dist/browspark-firefox-extension.zip`. The Firefox ZIP is unsigned and loads temporarily through `about:debugging`; permanent standard Firefox installation requires Mozilla signing. `setup.sh` downloads the Chromium archive from `releases/latest`.
 7. **Deploys are automatic on push to `main`**: Mintlify (docs, `docs/` subdirectory), Cloudflare Workers (landing page from `frontend/`, config in `frontend/wrangler.jsonc`).
 

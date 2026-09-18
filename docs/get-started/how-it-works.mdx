@@ -17,7 +17,7 @@ description: "The three pieces, how they talk, and what happens on a single tool
 The diagram shows transport routing. Moving dots illustrate the connections; they do not display live activity. Reduced-motion settings show a still diagram.
 
 - **Companion** (`companion/`): the MCP server. Registers 43 tools, keeps per-tab capture state (console, network, scripts, paused frames, issues), holds artifacts, and routes each command to the selected extension or developer browser. Connected browsers share one local port and have unique public tab IDs.
-- **Extension** (`extension/`): a Manifest V3 background process that connects each browser profile to the companion. Chromium uses the debugger API; Firefox uses WebExtension APIs and sandboxed user scripts. Its full-page dashboard controls sharing, tool switches and the activity log. Several profiles can connect simultaneously.
+- **Extension** (`extension/`): a Manifest V3 background process that connects each browser profile to the companion, built from the shared `shared/` source with per-browser manifests in `chromium/` and `firefox/`. Chromium uses the debugger API; Firefox uses WebExtension APIs and sandboxed user scripts. Its full-page dashboard controls sharing, tool switches and the activity log. Several profiles can connect simultaneously.
 - **Shared protocol** (`shared/protocol.ts`): the typed request, response and event messages between the two. Summarised in [Wire protocol](/reference/wire-protocol).
 
 ## One Chromium tool call, end to end

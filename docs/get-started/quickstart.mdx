@@ -25,10 +25,10 @@ For Chrome, Brave or another Chromium browser, continue from **Load the extensio
     cd browspark
     bun install && bun run build
     ```
-    That bundles the extension into the `extension/` folder. The companion itself comes from npm, so the clone is only for the extension.
+    That bundles the Chromium extension into the `dist/chromium-extension/` folder (plus `dist/firefox-extension/` for Firefox and Zen). The companion itself comes from npm, so the clone is only for the extension.
   </Step>
   <Step title="Load the extension">
-    Open `chrome://extensions` in Chrome or `brave://extensions` in Brave, switch on **Developer mode**, click **Load unpacked** and pick the unzipped folder (or `extension/` in the clone). Repeat in each browser profile you want to connect. Pin the Browspark icon so each dashboard is one click away.
+    Open `chrome://extensions` in Chrome or `brave://extensions` in Brave, switch on **Developer mode**, click **Load unpacked** and pick the unzipped folder (or `dist/chromium-extension/` in the clone). Repeat in each browser profile you want to connect. Pin the Browspark icon so each dashboard is one click away.
   </Step>
   <Step title="Register the companion with your agent">
     For Claude Code:

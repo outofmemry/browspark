@@ -50,7 +50,7 @@ Each profile has its own extension storage. Firefox uses the equivalent `browser
 |---|---|
 | `companion/src/` | MCP server: `index.ts` (transports, relay, HTTP), `bridge.ts` (WebSocket and HTTP routes), `graph.ts` (connection snapshots), `session.ts` (tab routing, contexts), `cdp.ts` (Chromium developer browsers), `firefox.ts` (Firefox/Zen developer browsers), `browsers.ts` (executable discovery), `page.ts` (snapshots, input, reading), `tools.ts` (browser tools), `live.ts`, `artifacts.ts`, `context.ts` (tool wrapper, policy, per-agent state), `devtools/` (one module per DevTools panel) |
 | `companion/test/` | Unit tests, e2e scenarios, the harness, the capability and docs generators |
-| `extension/` | `manifest.json` (Chromium), `manifest.firefox.json`, `app.html`, `app.css`, `assets/` (bundled logos), `src/background.ts` (background process), `src/app.ts` (dashboard), `src/graph-canvas.ts` (drag, pan and zoom), `src/brands.ts` (graph names and logos), `src/state.ts` |
-| `shared/` | `protocol.ts`, the wire protocol |
+| `extension/` | `shared/` (background process, dashboard, `app.html`, `app.css`, `assets/`), `chromium/manifest.json`, `firefox/manifest.json` — one shared codebase, per-browser manifests |
+| `shared/` | `protocol.ts`, the wire protocol; `firefox-dom.ts`, the DOM adapter used by both the companion and the Firefox extension |
 | `test-apps/` | Deterministic pages, API, service worker and source-mapped script used by the tests |
 | `docs/` | This site |

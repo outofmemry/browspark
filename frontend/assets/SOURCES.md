@@ -1,6 +1,6 @@
 # Brand assets
 
-Browspark's logo is the user-provided `extension/assets/logo.png`, originally supplied as `/Users/krishmakhijani/Downloads/logo.png`. `logo.png` (128 × 128) and `favicon.png` (32 × 32) are proportional PNG exports using macOS `sips`; composition and colors are unchanged.
+Browspark's logo is the user-provided `extension/shared/assets/logo.png`, originally supplied as `/Users/krishmakhijani/Downloads/logo.png`. `logo.png` (128 × 128) and `favicon.png` (32 × 32) are proportional PNG exports using macOS `sips`; composition and colors are unchanged.
 
 Client marks were copied from the extension's officially sourced assets, retrieved on 2026-09-12. Logos belong to their respective owners. No client mark was redrawn or recolored.
 

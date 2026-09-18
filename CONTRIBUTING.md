@@ -20,7 +20,7 @@ bun run test:firefox # Firefox acceptance scenarios
 bun run test:multi-browser # Chrome, Brave, Firefox and Zen together
 ```
 
-Load `extension/` unpacked in Chrome or Brave, or load `dist/firefox-extension/manifest.json` through `about:debugging` in Firefox 153+ or a compatible Zen build. Run the matching companion from source with `bun companion/src/index.ts`. Multiple profiles can connect to the same companion; all four browsers also support separate developer contexts. Install the required browsers before running their acceptance suites, and run browser suites one at a time. See the [development reference](https://docs.browspark.krishm.dev/reference/development) for executable overrides and the full workflow.
+Load `dist/chromium-extension/` (after `bun run build`) unpacked in Chrome or Brave, or load `dist/firefox-extension/manifest.json` through `about:debugging` in Firefox 153+ or a compatible Zen build. Run the matching companion from source with `bun companion/src/index.ts`. Multiple profiles can connect to the same companion; all four browsers also support separate developer contexts. Install the required browsers before running their acceptance suites, and run browser suites one at a time. See the [development reference](https://docs.browspark.krishm.dev/reference/development) for executable overrides and the full workflow.
 
 ## Pull requests
 - Keep each pull request to one change. Small diffs get reviewed quickly.
