@@ -207,12 +207,12 @@ test('setup client selection shows valid configuration and survives navigation a
     await evaluate('document.querySelector(\'#nav a[href="#/settings"]\').click()');
     await waitFor(`document.querySelector('#main h1')?.textContent === 'Settings'`);
     await evaluate('document.querySelector(\'#nav a[href="#/overview"]\').click()');
-    await waitFor(selected('antigravity'));
-    assert.equal(await evaluate('localStorage.getItem("setupClient")'), 'antigravity');
+    await waitFor(selected('muse'));
+    assert.equal(await evaluate('localStorage.getItem("setupClient")'), 'muse');
     await evaluate('window.__setupBeforeReload = true');
     await cdp.send('Page.reload', {}, dashboardSession);
-    await waitFor(`!window.__setupBeforeReload && ${selected('antigravity')}`);
-    assert.equal(await evaluate(`document.querySelector('.setup-code .btn').getAttribute('aria-label')`), 'Copy Antigravity setup');
+    await waitFor(`!window.__setupBeforeReload && ${selected('muse')}`);
+    assert.equal(await evaluate(`document.querySelector('.setup-code .btn').getAttribute('aria-label')`), 'Copy Muse Code setup');
   } finally {
     await evaluate(`document.querySelector('.setup-clients button[data-client="${previousClient || 'claude'}"]')?.click(); ${previousClient === null ? 'localStorage.removeItem("setupClient")' : `localStorage.setItem("setupClient", ${JSON.stringify(previousClient)})`}; location.hash = ${JSON.stringify(previousHash)}`);
   }
@@ -488,7 +488,8 @@ test('native New Tab in another window can be shared and navigated without grant
     const automatic = await evaluate(`chrome.tabs.create({windowId:${windowId},url:'chrome://newtab/',active:false})`);
     await waitFor(`chrome.tabs.get(${automatic.id}).then(tab => tab.status === 'complete' && tab.url.startsWith('chrome://new'))`);
     assert.ok(isNewTab(await evaluate(`chrome.tabs.get(${automatic.id}).then(tab => tab.url)`)));
-    await waitFor(`${checkbox(automatic.id)}?.checked && ${checkbox(automatic.id)}.disabled`);
+    // Share-everything auto-shares the tab but leaves its switch toggleable (shared, not locked).
+    await waitFor(`${checkbox(automatic.id)}?.checked && !${checkbox(automatic.id)}.disabled`);
     const settings = await evaluate(`chrome.tabs.create({windowId:${windowId},url:'chrome://settings/',active:false})`);
     await waitFor(`${checkbox(settings.id)}?.disabled && !${checkbox(settings.id)}.checked`);
     assert.equal(await evaluate(`${checkbox(settings.id)}.checked`), false, 'Settings remains unavailable even while sharing everything');
