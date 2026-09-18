@@ -1,5 +1,5 @@
 // Messages between the dashboard page and the service worker.
-import type { ConnectionGraph, TabInfo, ToolInfo } from '../../shared/protocol.ts';
+import type { ConnectionGraph, TabInfo, ToolInfo } from '../../../shared/protocol.ts';
 
 export interface OpLog { id: number; at: number; ms: number; tabId: number; tabLabel: string; method: string; ok: boolean; error?: string; client?: string }
 export interface WindowInfo { id: number; incognito: boolean }

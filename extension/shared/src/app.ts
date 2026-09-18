@@ -1,4 +1,4 @@
-import { isNewTab, type TabInfo } from '../../shared/protocol.ts';
+import { isNewTab, type TabInfo } from '../../../shared/protocol.ts';
 import type { PopupMsg, State } from './state.ts';
 import { api, FIREFOX_PERMISSIONS } from './browser.ts';
 import { graphBrand } from './brands.ts';

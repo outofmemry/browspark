@@ -1,7 +1,7 @@
 import {
   DEFAULT_PORT, PROTOCOL_VERSION, STOP_BINDING, isReq, isNewTab, unsupportedReason, isConnectionGraph,
   type CdpParams, type ConnectionGraph, type Evt, type HelloParams, type Msg, type Req, type Res, type TabInfo, type ToolInfo,
-} from '../../shared/protocol.ts';
+} from '../../../shared/protocol.ts';
 import type { OpLog, PopupMsg, State } from './state.ts';
 import { api, isFirefox, FIREFOX_PERMISSIONS } from './browser.ts';
 import { createFirefoxDebugger } from './firefox-debugger.ts';

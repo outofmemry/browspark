@@ -1,4 +1,4 @@
-import { FirefoxDOM } from '../../companion/src/firefox-dom.ts';
+import { FirefoxDOM } from '../../../companion/src/firefox-dom.ts';
 
 type Target = { tabId: number; sessionId?: string };
 type Attachment = { key: string; contextId: number; worlds: Map<number, string> };

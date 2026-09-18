@@ -1,7 +1,7 @@
 import { test } from 'bun:test';
 import assert from 'node:assert/strict';
 import { createContext, runInContext } from 'node:vm';
-import { createFirefoxDebugger } from '../../extension/src/firefox-debugger.ts';
+import { createFirefoxDebugger } from '../../extension/shared/src/firefox-debugger.ts';
 
 test('Firefox extension evaluates in API-free worlds and scopes live objects to their tab, world and document', async () => {
   const shared = new Set([1, 2]);

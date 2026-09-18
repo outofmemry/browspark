@@ -1,7 +1,7 @@
 import { test } from 'bun:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { graphBrand } from '../../extension/src/brands.ts';
+import { graphBrand } from '../../extension/shared/src/brands.ts';
 
 test('graph brands resolve reported names and use explicit fallbacks for unknown clients and browser engines', () => {
   const agents = ['Claude', 'Codex', 'Cursor', 'OpenCode', 'Antigravity', 'Muse Code'];
@@ -13,7 +13,7 @@ test('graph brands resolve reported names and use explicit fallbacks for unknown
       assert.equal(brand.label, name);
       for (const src of [brand.src, brand.darkSrc].filter(Boolean)) {
         assert.match(src!, /^assets\/(?:clients|browsers)\/[a-z-]+\.(?:png|svg)$/);
-        assert.ok(existsSync(new URL(`../../extension/${src}`, import.meta.url)), `${src} is bundled`);
+        assert.ok(existsSync(new URL(`../../extension/shared/${src}`, import.meta.url)), `${src} is bundled`);
       }
     }
   }
@@ -29,14 +29,14 @@ test('graph brands resolve reported names and use explicit fallbacks for unknown
     const brand = graphBrand(name, 'agent');
     assert.equal(brand.label, 'Other agent');
     assert.equal(brand.src, 'assets/clients/other-agent.svg');
-    assert.ok(existsSync(new URL(`../../extension/${brand.src}`, import.meta.url)));
+    assert.ok(existsSync(new URL(`../../extension/shared/${brand.src}`, import.meta.url)));
   }
   for (const engine of ['chromium', 'firefox'] as const) {
     for (const name of ['', 'Custom browser', 'Chromium', 'Firefox-based browser', 'Arcade', 'Dialog', 'Zenith', 'My Chrome profile', 'Codex']) {
       const brand = graphBrand(name, 'browser', engine);
       assert.equal(brand.label, engine === 'firefox' ? 'Unknown Firefox' : 'Unknown Chromium');
       assert.equal(brand.src, `assets/browsers/${engine}.png`);
-      assert.ok(existsSync(new URL(`../../extension/${brand.src}`, import.meta.url)));
+      assert.ok(existsSync(new URL(`../../extension/shared/${brand.src}`, import.meta.url)));
     }
   }
   assert.equal(graphBrand('Chromium 153', 'browser').label, 'Unknown Chromium');
