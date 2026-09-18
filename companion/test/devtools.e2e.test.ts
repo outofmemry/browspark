@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import type { Server } from 'node:http';
 import { startTestServer } from '../../test-apps/server.ts';
-import { launchExtensionChrome, startCompanion, callers, pairAndShare, dashboard, ROOT, type Ext } from './harness.ts';
+import { launchExtensionChrome, startCompanion, callers, pairAndShare, dashboard, foregroundTab, ROOT, type Ext } from './harness.ts';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
@@ -196,6 +196,10 @@ describe.skipIf(skip)('devtools e2e (extension mode)', () => {
   });
 
   test('scenario 5: slow function via CPU profile and performance trace', async () => {
+    // Earlier navigations (e.g. scenario 4's override reloads) leave synthetic input
+    // undelivered on hidden tabs under Chrome 153; foreground once up front. The
+    // vitals below still observe a post-install load via scenario 4's reloads.
+    await foregroundTab(ext, 'debug.html');
     if (await supported('Profiler')) {
       await ok('devtools_profile', { tabId, action: 'start' });
       await clickBtn('Slow'); await ok('browser_wait', { tabId, text: 'slow done', timeoutMs: 5000 });
@@ -351,6 +355,7 @@ describe.skipIf(skip)('devtools e2e (extension mode)', () => {
 
   test('refs are stable across snapshots, never reused, and boxless containers are traversed', async () => {
     await ok('browser_navigate', { tabId, url: appUrl + 'debug.html' });
+    await foregroundTab(ext, 'debug.html'); // navigations stall later input on hidden tabs under Chrome 153
     const s1 = await ok('browser_snapshot', { tabId });
     assert.match(s1, /button "Contents child"/, 'display: contents child is visible in the snapshot');
     const slow1 = refOf(s1, /button "Slow"[^\n]*\[ref=(e\d+)\]/), log1 = refOf(s1, /button "Log"[^\n]*\[ref=(e\d+)\]/);
@@ -417,6 +422,7 @@ describe.skipIf(skip)('devtools e2e (extension mode)', () => {
 
   test('recorder, batch, richer automation, cleanup on stop', async () => {
     await ok('browser_navigate', { tabId, action: 'reload' });
+    await foregroundTab(ext, 'debug.html'); // reloads stall later input on hidden tabs under Chrome 153
     await ok('devtools_recorder', { action: 'start', tabId, name: 'flow1' });
     const snap = await ok('browser_snapshot', { tabId });
     await ok('browser_fill', { tabId, ref: refOf(snap, /textbox[^\n]*\[ref=(e\d+)\]/), text: 'typed' });
@@ -426,6 +432,7 @@ describe.skipIf(skip)('devtools e2e (extension mode)', () => {
     const saved = await ok('devtools_recorder', { action: 'stop' }); assert.match(saved, /flow1/);
     const flow = await okJson('devtools_recorder', { action: 'get', flowId: 'flow1' }); assert.deepEqual(flow.params, ['name']); assert.ok(flow.steps.some((s: any) => s.selector));
     await ok('browser_navigate', { tabId, action: 'reload' });
+    await foregroundTab(ext, 'debug.html');
     const replay = await ok('devtools_recorder', { action: 'replay', flowId: 'flow1', tabId, params: { name: 'replayed' } });
     assert.doesNotMatch(replay, /✗/); assert.equal(JSON.parse(await ok('devtools_evaluate', { tabId, expression: "document.getElementById('unlabeled').value" })).value, 'replayed');
     const batch = await ok('browser_batch', { steps: [{ tool: 'browser_navigate', args: { tabId, action: 'reload' } }, { tool: 'browser_read', args: { tabId, what: 'text' } }] }); assert.match(batch, /2\. browser_read: .*Debug App/s);

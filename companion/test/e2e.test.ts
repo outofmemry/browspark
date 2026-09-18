@@ -58,6 +58,13 @@ const waitFor = async (expression: string) => {
   }
   assert.fail(`Dashboard did not render: ${expression}`);
 };
+// Foreground the driven tab: Chrome 153 stops delivering debugger-driven synthetic
+// input to hidden tabs after a navigation until they are activated again.
+const foregroundMainTab = async () => {
+  const windowId = await evaluate(`chrome.tabs.get(${nativeTabId}).then(t => t.windowId)`);
+  await evaluate(`chrome.windows.update(${windowId}, {focused:true})`);
+  await evaluate(`chrome.tabs.update(${nativeTabId}, {active:true})`);
+};
 
 describe.skipIf(skip)('e2e', () => {
 beforeAll(async () => {
@@ -270,6 +277,7 @@ test('snapshot, fill, select, click, read, key, wait, scroll, frames', async () 
 
 for (const strictTypes of [false, true]) test(`agent overlay appears, stays out of captures, and Stop revokes the tab${strictTypes ? ' with Trusted Types enforced' : ''}`, async () => {
   await ok('browser_navigate', { tabId, url: appUrl + (strictTypes ? 'trusted-types.html' : '') });
+  await foregroundMainTab();
   // A second CDP session on the app tab, alongside the extension's debugger, to look at the page from outside.
   const { targetInfos } = await cdp.send('Target.getTargets');
   const target = targetInfos.find((t: any) => t.type === 'page' && t.url.startsWith(appUrl) && !t.url.includes('page2'));
@@ -395,6 +403,7 @@ test('downloads stay scoped to their originating shared tab on the same origin',
 });
 
 test('dialogs block evaluation until handled', async () => {
+  await foregroundMainTab();
   const snap = await ok('browser_snapshot');
   const confirmBtn = /button "Confirm"[^\n]*\[ref=(e\d+)\]/.exec(snap)![1];
   assert.match(await ok('browser_click', { ref: confirmBtn }), /confirm dialog opened/);

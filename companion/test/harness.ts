@@ -81,6 +81,16 @@ export async function dashboard(ext: Ext): Promise<(m: unknown) => Promise<any>>
   return ext.msg;
 }
 
+/** Foreground a page tab via raw browser CDP (bypasses the product's background-mode gate:
+ *  this simulates the user looking at the tab). Needed because Chrome 153 stops delivering
+ *  debugger-driven synthetic input to hidden tabs after a navigation until they are activated. */
+export async function foregroundTab(ext: Ext, urlSubstring: string): Promise<void> {
+  const { targetInfos } = await ext.cdp.send('Target.getTargets');
+  const t = targetInfos.find((x: any) => x.type === 'page' && String(x.url).includes(urlSubstring));
+  assert.ok(t, `no page target for ${urlSubstring}`);
+  await ext.cdp.send('Target.activateTarget', { targetId: t.targetId });
+}
+
 /** Resolve a tab's companion id; extension dashboard ids belong to the browser and must never go to MCP. */
 export async function companionTab(ok: (n: string, a?: Record<string, unknown>) => Promise<string>, url: string, windowId?: number): Promise<{ id: number; browserId?: string; line: string }> {
   for (let i = 0; i < 50; i++) {
