@@ -6,7 +6,6 @@ import { spawnSync } from 'node:child_process';
 // The release script is POSIX shell; Windows contributors have no /bin/sh.
 describe.skipIf(process.platform === 'win32')('release script', () => {
 test('release stops before publishing when npm authentication fails', () => {
-  if (process.platform === 'win32') return;
   const { scripts } = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
   // Shadow every Bun invocation so this check can never reach the registry.
   const result = spawnSync('/bin/sh', ['-c', `bun() { printf '%s\\n' "$*"; return 1; }; ${scripts.release}`], { encoding: 'utf8' });

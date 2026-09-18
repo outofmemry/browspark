@@ -7,7 +7,7 @@ import { parseSourceMap, toOriginal, toGenerated, resolveMapUrl, decodeDataUrl, 
 import type { TabState } from './capture.ts';
 
 const MAX_MAP_CACHE = 100;
-const mapCache = new Map<string, Promise<SourceMap | undefined>>(); // key: tabId:scriptId
+const mapCache = new Map<string, Promise<SourceMap | undefined>>(); // key: tabId:scriptId:hash
 
 export async function sourceMapFor(ctx: Ctx, tabId: number, st: TabState, scriptId: string): Promise<SourceMap | undefined> {
   const s = st.scripts.get(scriptId);
