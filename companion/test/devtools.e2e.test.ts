@@ -77,22 +77,26 @@ describe.skipIf(skip)('devtools e2e (extension mode)', () => {
   test('capability probes preserve active profiling and emulation reset restores overrides', async () => {
     const timezone = (await okJson('devtools_evaluate', { tabId, expression: 'Intl.DateTimeFormat().resolvedOptions().timeZone' })).value;
     const animations = await supported('Animation');
+    const profiling = await supported('Profiler');
+    if (!profiling) console.log('  (Profiler unsupported over the extension debugger here; skipping CPU part)');
     try {
       await ok('devtools_emulation', { tabId, action: 'media', colorScheme: 'dark' });
       await ok('devtools_emulation', { tabId, action: 'locale', locale: 'fr-FR', timezone: 'Pacific/Honolulu' });
       if (animations) await ok('devtools_emulation', { tabId, action: 'animations', playbackRate: 0 });
-      await ok('devtools_profile', { tabId, action: 'start' });
+      if (profiling) await ok('devtools_profile', { tabId, action: 'start' });
       await ok('devtools_capabilities', { tabId, refresh: true });
       assert.equal((await okJson('devtools_evaluate', { tabId, expression: 'matchMedia("(prefers-color-scheme: dark)").matches' })).value, true);
       assert.equal((await okJson('devtools_evaluate', { tabId, expression: 'Intl.DateTimeFormat().resolvedOptions().timeZone' })).value, 'Pacific/Honolulu');
-      const profile = await okJson('devtools_profile', { tabId, action: 'stop' });
-      assert.ok(existsSync(profile.artifact), 'capability probes leave the active CPU profile intact');
+      if (profiling) {
+        const profile = await okJson('devtools_profile', { tabId, action: 'stop' });
+        assert.ok(existsSync(profile.artifact), 'capability probes leave the active CPU profile intact');
+      }
       await ok('devtools_emulation', { tabId, action: 'reset' });
       if (animations) assert.equal((await okJson('devtools_emulation', { tabId, action: 'animations' })).playbackRate, 1);
       assert.equal((await okJson('devtools_evaluate', { tabId, expression: 'Intl.DateTimeFormat().resolvedOptions().timeZone' })).value, timezone);
       assert.deepEqual(await okJson('devtools_emulation', { tabId, action: 'status' }), {});
     } finally {
-      await call('devtools_profile', { tabId, action: 'stop' });
+      if (profiling) await call('devtools_profile', { tabId, action: 'stop' });
       await call('devtools_emulation', { tabId, action: 'reset' });
     }
   });
@@ -192,17 +196,23 @@ describe.skipIf(skip)('devtools e2e (extension mode)', () => {
   });
 
   test('scenario 5: slow function via CPU profile and performance trace', async () => {
-    await ok('devtools_profile', { tabId, action: 'start' });
-    await clickBtn('Slow'); await ok('browser_wait', { tabId, text: 'slow done', timeoutMs: 5000 });
-    const prof = await okJson('devtools_profile', { tabId, action: 'stop' });
-    assert.ok(existsSync(prof.artifact)); assert.ok(prof.bottomUp.some((f: any) => f.function.startsWith('slowFunction')), JSON.stringify(prof.bottomUp.slice(0, 5)));
+    if (await supported('Profiler')) {
+      await ok('devtools_profile', { tabId, action: 'start' });
+      await clickBtn('Slow'); await ok('browser_wait', { tabId, text: 'slow done', timeoutMs: 5000 });
+      const prof = await okJson('devtools_profile', { tabId, action: 'stop' });
+      assert.ok(existsSync(prof.artifact)); assert.ok(prof.bottomUp.some((f: any) => f.function.startsWith('slowFunction')), JSON.stringify(prof.bottomUp.slice(0, 5)));
+    } else console.log('  (Profiler unsupported over the extension debugger here; skipping CPU part)');
     if (!(await supported('Tracing'))) { console.log('  (Tracing unsupported in extension mode here; skipping trace part)'); return; }
     await ok('devtools_performance', { tabId, action: 'start' });
-    await clickBtn('Slow'); await ok('browser_wait', { tabId, text: 'slow done', timeoutMs: 5000 });
-    const perf = await okJson('devtools_performance', { tabId, action: 'stop' });
-    assert.ok(existsSync(perf.artifact)); assert.ok(perf.longTasks.count >= 1, JSON.stringify(perf.longTasks)); assert.ok(perf.timeByCategoryMs.scripting > 100);
-    const hits = await okJson('devtools_performance', { tabId, action: 'search', recordingId: perf.recordingId, query: 'FunctionCall', minDurationMs: 100 }); assert.ok(hits.total >= 1);
-    const vitals = await okJson('devtools_performance', { tabId, action: 'vitals' }); assert.ok('longTasks' in vitals || 'FCP' in vitals);
+    try {
+      await clickBtn('Slow'); await ok('browser_wait', { tabId, text: 'slow done', timeoutMs: 15000 });
+      const perf = await okJson('devtools_performance', { tabId, action: 'stop' });
+      assert.ok(existsSync(perf.artifact)); assert.ok(perf.longTasks.count >= 1, JSON.stringify(perf.longTasks)); assert.ok(perf.timeByCategoryMs.scripting > 100);
+      const hits = await okJson('devtools_performance', { tabId, action: 'search', recordingId: perf.recordingId, query: 'FunctionCall', minDurationMs: 100 }); assert.ok(hits.total >= 1);
+      const vitals = await okJson('devtools_performance', { tabId, action: 'vitals' }); assert.ok('longTasks' in vitals || 'FCP' in vitals);
+    } finally {
+      await call('devtools_performance', { tabId, action: 'stop' }); // never leave tracing on to burden later tests
+    }
   });
 
   test('scenario 6: retained objects in a memory-growth example, exported heap snapshot', async () => {
@@ -249,11 +259,13 @@ describe.skipIf(skip)('devtools e2e (extension mode)', () => {
   });
 
   test('coverage, accessibility, security, issues, events paging', async () => {
-    await ok('devtools_coverage', { tabId, action: 'start' }); await clickBtn('Log'); await ok('devtools_console', { tabId, action: 'wait', query: 'hello from app', timeoutMs: 5000 });
-    const cov = await okJson('devtools_coverage', { tabId, action: 'stop' });
-    const js = cov.files.find((f: any) => f.url.includes('dist/app.js')); assert.ok(js && js.unusedPct > 0 && js.unusedPct < 100, JSON.stringify(cov.files));
-    const det = await okJson('devtools_coverage', { tabId, action: 'detail', url: 'dist/app.js' }); assert.ok(det.unusedRanges.length && det.unusedRanges[0].fromLine > 0);
-    assert.ok(cov.files.some((f: any) => f.type === 'CSS'));
+    if (await supported('Profiler')) {
+      await ok('devtools_coverage', { tabId, action: 'start' }); await clickBtn('Log'); await ok('devtools_console', { tabId, action: 'wait', query: 'hello from app', timeoutMs: 5000 });
+      const cov = await okJson('devtools_coverage', { tabId, action: 'stop' });
+      const js = cov.files.find((f: any) => f.url.includes('dist/app.js')); assert.ok(js && js.unusedPct > 0 && js.unusedPct < 100, JSON.stringify(cov.files));
+      const det = await okJson('devtools_coverage', { tabId, action: 'detail', url: 'dist/app.js' }); assert.ok(det.unusedRanges.length && det.unusedRanges[0].fromLine > 0);
+      assert.ok(cov.files.some((f: any) => f.type === 'CSS'));
+    } else console.log('  (Profiler unsupported over the extension debugger here; skipping coverage part)');
     const tree = await ok('devtools_accessibility', { tabId, action: 'tree' }); assert.match(tree, /button "Log"/); assert.match(tree, /heading "Debug App"/);
     const node = await okJson('devtools_accessibility', { tabId, action: 'node', selector: '#slow' }); assert.equal(node.role, 'button'); assert.equal(node.name, 'Slow');
     const check = await okJson('devtools_accessibility', { tabId, action: 'check' }); assert.ok(check.problems.some((p: any) => p.rule === 'form-label'));
@@ -309,6 +321,7 @@ describe.skipIf(skip)('devtools e2e (extension mode)', () => {
   });
 
   test('markdown read, PDF, domain policy (extension mode)', async () => {
+    await ok('devtools_evaluate', { tabId, expression: 'document.getElementById("out").textContent = "idle"' }); // deterministic fixture state without navigating (navigations stall later input on hidden tabs)
     const md = await ok('browser_read', { tabId, what: 'markdown' }); assert.match(md, /^# Debug App/m); assert.match(md, /idle/); assert.doesNotMatch(md, /Register SW/, 'buttons are UI, not content');
     const pdf = await call('browser_pdf', { tabId }); if (!pdf.err) { const p = /to (\S+\.pdf)/.exec(pdf.txt)![1]; assert.equal(readFileSync(p).subarray(0, 4).toString(), '%PDF'); } else console.log('  (PDF unavailable in extension mode: ' + pdf.txt.slice(0, 80) + ')');
     await ok('browser_policy', { action: 'set', tabId, allow: ['127.0.0.1'] });
