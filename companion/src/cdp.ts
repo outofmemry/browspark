@@ -2,7 +2,7 @@
 import { EventEmitter } from 'node:events';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
 import { WebSocket } from 'ws';
 import { findBrowser, type BrowserName } from './browsers.ts';
@@ -244,6 +244,9 @@ export class DirectChrome extends EventEmitter {
       const deadline = setTimeout(finish, 5000);
       proc.once('exit', finish);
       proc.kill();
+      if (platform() === 'win32' && proc.pid) {
+        try { spawn('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }); } catch {}
+      }
     }).finally(() => { this.stopping = undefined; });
     return this.stopping;
   }

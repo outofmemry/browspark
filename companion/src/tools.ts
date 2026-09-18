@@ -205,7 +205,7 @@ export function registerBrowserTools(ctx: Ctx) {
   tool(ctx, 'browser_upload', 'Set files on an <input type=file> by ref. Paths must be readable by the browser machine.', { tabId: tabArg, ref: refArg, files: z.array(z.string()).min(1) },
     async ({ tabId, ref, files }) => page.upload(await tab(tabId), ref, files));
 
-  tool(ctx, 'browser_key', `Press a key or chord on the focused element ("Enter", "Tab", "Escape", "ArrowDown", "Shift+Tab", "a"), or type text. Keys go to the web page only: browser-level shortcuts (opening DevTools, Cmd+Shift+C, tab switching, reload) are handled by the browser UI and cannot be triggered this way; use the devtools_* tools instead. Editing shortcuts use the platform modifier: ${process.platform === 'darwin' ? '"Meta+a" selects all on this Mac' : '"Control+a" selects all'}.`, {
+  tool(ctx, 'browser_key', 'Press a key or chord on the focused element ("Enter", "Tab", "Escape", "ArrowDown", "Shift+Tab", "a"), or type text. Keys go to the web page only: browser-level shortcuts (opening DevTools, Cmd+Shift+C, tab switching, reload) are handled by the browser UI and cannot be triggered this way; use the devtools_* tools instead. Editing shortcuts use the platform modifier (e.g. "Meta+a" on macOS, "Control+a" on Windows/Linux selects all).', {
     tabId: tabArg, key: z.string().optional(), text: z.string().optional(),
   }, async ({ tabId, key, text: t }) => {
     const id = await tab(tabId);
@@ -236,6 +236,7 @@ export function registerBrowserTools(ctx: Ctx) {
   }, async ({ steps }) => {
     const out: string[] = [];
     for (let i = 0; i < steps.length; i++) {
+      if (steps[i].tool === 'browser_batch') throw new Error(`Step ${i + 1}: nested browser_batch is not allowed`);
       const fn = registry.get(steps[i].tool);
       if (!fn) throw new Error(`Step ${i + 1}: unknown tool ${steps[i].tool}`);
       const r = await fn(steps[i].args ?? {});

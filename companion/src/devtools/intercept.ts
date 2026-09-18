@@ -11,7 +11,7 @@ const fetchOn = new Set<number>();
 const lastPatterns = new Map<number, string[]>();
 /** Tabs whose debugger detached while rules were active: interception is re-armed before their next command. */
 const needsRestore = new Set<number>();
-const norm = (d: string) => d.trim().toLowerCase().replace(/^\*\./, '').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+const norm = (d: string) => d.trim().toLowerCase().replace(/^\*\./, '').replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/:\d+$/, '');
 const matches = (host: string, d: string) => { const n = norm(d); return !!n && (host === n || host.endsWith('.' + n)); };
 
 /** true when the policy lets this URL through. Non-http(s) schemes (data:, blob:, about:) are always allowed. */

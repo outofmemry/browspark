@@ -6,24 +6,31 @@ import { applyFetchRules } from './network.ts';
 import { parseSourceMap, toOriginal, toGenerated, resolveMapUrl, decodeDataUrl, type SourceMap } from './sourcemap.ts';
 import type { TabState } from './capture.ts';
 
+const MAX_MAP_CACHE = 100;
 const mapCache = new Map<string, Promise<SourceMap | undefined>>(); // key: tabId:scriptId
 
 export async function sourceMapFor(ctx: Ctx, tabId: number, st: TabState, scriptId: string): Promise<SourceMap | undefined> {
   const s = st.scripts.get(scriptId);
   if (!s?.sourceMapURL) return undefined;
   const key = `${tabId}:${scriptId}:${s.hash}`;
-  if (!mapCache.has(key)) mapCache.set(key, (async () => {
-    const url = resolveMapUrl(s.url, s.sourceMapURL!);
-    let text: string | undefined;
-    if (url.startsWith('data:')) text = decodeDataUrl(url);
-    else {
-      // script.url can be forged with sourceURL. Keep requests in the page so CSP,
-      // browser network restrictions and the tab's Fetch policy remain authoritative.
-      text = await ctx.page.evaluate<string>(tabId, `fetch(${JSON.stringify(url)}).then(r => r.ok ? r.text() : Promise.reject(new Error(r.status)))`).catch(() => undefined);
+  if (!mapCache.has(key)) {
+    if (mapCache.size >= MAX_MAP_CACHE) {
+      const oldest = mapCache.keys().next().value;
+      if (oldest) mapCache.delete(oldest);
     }
-    if (!text) return undefined;
-    try { return parseSourceMap(text); } catch { return undefined; }
-  })());
+    mapCache.set(key, (async () => {
+      const url = resolveMapUrl(s.url, s.sourceMapURL!);
+      let text: string | undefined;
+      if (url.startsWith('data:')) text = decodeDataUrl(url);
+      else {
+        // script.url can be forged with sourceURL. Keep requests in the page so CSP,
+        // browser network restrictions and the tab's Fetch policy remain authoritative.
+        text = await ctx.page.evaluate<string>(tabId, `fetch(${JSON.stringify(url)}).then(r => r.ok ? r.text() : Promise.reject(new Error(r.status)))`).catch(() => undefined);
+      }
+      if (!text) return undefined;
+      try { return parseSourceMap(text); } catch { return undefined; }
+    })());
+  }
   return mapCache.get(key)!;
 }
 

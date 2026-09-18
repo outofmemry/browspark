@@ -34,8 +34,17 @@ export function toPlaywright(f: Flow): string {
 export interface Step { tool?: string; args?: Record<string, unknown>; selector?: string; checkpoint?: string; note?: string }
 export interface Flow { id: string; name: string; createdAt: string; params: string[]; steps: Step[] }
 
+const MAX_FLOWS = 50;
+
 class Recorder {
   flows = new Map<string, Flow>();
+  setFlow(f: Flow) {
+    if (this.flows.size >= MAX_FLOWS) {
+      const oldest = this.flows.keys().next().value;
+      if (oldest) this.flows.delete(oldest);
+    }
+    this.flows.set(f.id, f);
+  }
   /** Records into the recording of the agent making the call, if it is recording this tab. */
   record(tabId: number, toolName: string, args: Record<string, unknown>) {
     const active = currentClient()?.recording;
@@ -57,7 +66,7 @@ export function registerRecorderTools(ctx: Ctx) {
   const loadFlow = (idOrPath?: string) => {
     if (!idOrPath) throw new Error('flowId required');
     const mem = recorder.flows.get(idOrPath); if (mem) return mem;
-    const raw = readArtifact(idOrPath); const f = JSON.parse(raw) as Flow; recorder.flows.set(f.id, f); return f;
+    const raw = readArtifact(idOrPath); const f = JSON.parse(raw) as Flow; recorder.setFlow(f); return f;
   };
 
   tool(ctx, 'devtools_recorder', 'Record and replay browser actions. start records every browser_navigate/click/fill/select/key/wait on the tab (with a stable selector per element); stop saves the flow as a JSON artifact. add_assertion appends a browser_wait check; add_checkpoint marks a place replay can stop at; parameterize turns a recorded literal into {{name}}. replay runs a flow on a tab with params, resolving selectors to fresh refs, and stops at the first failure or at stopAtCheckpoint.', {
@@ -75,7 +84,7 @@ export function registerRecorderTools(ctx: Ctx) {
         if (!me().recording) throw new Error('Not recording');
         const r = me().recording!; me().recording = undefined;
         const flow: Flow = { id: r.name.replace(/[^a-z0-9_-]+/gi, '_'), name: r.name, createdAt: new Date().toISOString(), params: paramsIn(r.steps), steps: r.steps };
-        recorder.flows.set(flow.id, flow);
+        recorder.setFlow(flow);
         const art = saveArtifact('flow', 'json', JSON.stringify(flow, null, 1), flow.id);
         return `Saved flow "${flow.name}" (${flow.steps.length} steps) as ${flow.id} → ${art.path}`;
       }

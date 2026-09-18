@@ -29,6 +29,7 @@ const ownedDownloads = new Map<string, { guid: string; tabId: number; url: strin
 const windowBounds = new Map<number, { width?: number; height?: number; state?: string }>(); // originals, restored after emulation
 const lastUsed = new Map<number, number>();
 const IDLE_DETACH_MS_DEFAULT = 30_000;
+let idleDetachMs = IDLE_DETACH_MS_DEFAULT;
 const recent: OpLog[] = [];
 const totals = { ops: 0, errors: 0 };
 let opSeq = 0;
@@ -45,9 +46,9 @@ let instanceId: string;
 let browserSessionId: string;
 
 const cfg = async () => {
-  const s = await api.storage.local.get(['port', 'shareAll', 'stopped', 'activityLog', 'toolCatalog', 'disabledTools', 'devMode', 'overlay', 'backgroundMode', 'graphEnabled']);
+  const s = await api.storage.local.get(['port', 'shareAll', 'stopped', 'activityLog', 'toolCatalog', 'disabledTools', 'devMode', 'overlay', 'backgroundMode', 'graphEnabled', 'idleDetachMs']);
   const ss = await api.storage.session.get(['shared', 'excluded']); // per-tab grants must not outlive the browser session
-  return { port: (s.port as number) || DEFAULT_PORT, shared: (ss.shared as number[]) || [], excluded: (ss.excluded as number[]) || [], shareAll: !!s.shareAll, stopped: !!s.stopped, activityLog: !!s.activityLog, toolCatalog: (s.toolCatalog as ToolInfo[]) || [], disabledTools: (s.disabledTools as string[]) || [], devMode: ((s.devMode as string) || 'auto') as 'auto' | 'always' | 'never', overlay: s.overlay !== false, backgroundMode: s.backgroundMode !== false, graphEnabled: s.graphEnabled !== false };
+  return { port: (s.port as number) || DEFAULT_PORT, shared: (ss.shared as number[]) || [], excluded: (ss.excluded as number[]) || [], shareAll: !!s.shareAll, stopped: !!s.stopped, activityLog: !!s.activityLog, toolCatalog: (s.toolCatalog as ToolInfo[]) || [], disabledTools: (s.disabledTools as string[]) || [], devMode: ((s.devMode as string) || 'auto') as 'auto' | 'always' | 'never', overlay: s.overlay !== false, backgroundMode: s.backgroundMode !== false, graphEnabled: s.graphEnabled !== false, idleDetachMs: (s.idleDetachMs as number) || IDLE_DETACH_MS_DEFAULT };
 };
 const send = (m: Msg) => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)); };
 const evt = (event: Evt['event'], params?: unknown) => send({ event, params });
@@ -379,13 +380,16 @@ api.tabs.onRemoved.addListener((tabId) => {
   pushTabs();
 });
 
+api.windows.onRemoved.addListener((windowId) => { windowBounds.delete(windowId); });
+
 // Idle detach: the debugger (and Chrome's "started debugging" bar) only stays on tabs the agent is actively using,
 // unless an inspection session holds the tab.
-setInterval(async () => {
-  const { idleDetachMs } = await api.storage.local.get('idleDetachMs');
-  const limit = (idleDetachMs as number) || IDLE_DETACH_MS_DEFAULT;
-  for (const id of [...attached]) if (!held.has(id) && Date.now() - (lastUsed.get(id) ?? 0) > limit) await detach(id);
+setInterval(() => {
+  for (const id of [...attached]) if (!held.has(id) && Date.now() - (lastUsed.get(id) ?? 0) > idleDetachMs) void detach(id);
 }, 2000);
+api.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.idleDetachMs) idleDetachMs = (changes.idleDetachMs.newValue as number) || IDLE_DETACH_MS_DEFAULT;
+});
 api.tabs.onCreated.addListener(() => pushTabs());
 api.tabs.onUpdated.addListener((_id, info) => { if (info.url || info.title || info.status === 'complete') pushTabs(); });
 
@@ -399,5 +403,5 @@ const ready = cfg().then(async (c) => {
   instanceId = typeof local.instanceId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(local.instanceId) ? local.instanceId : crypto.randomUUID();
   browserSessionId = typeof session.browserSessionId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(session.browserSessionId) ? session.browserSessionId : crypto.randomUUID();
   await api.storage.local.set({ instanceId }); await api.storage.session.set({ browserSessionId });
-  for (const id of c.shared) shared.add(id); for (const id of c.excluded) excluded.add(id); shareAll = c.shareAll; activityLog = c.activityLog; toolCatalog = c.toolCatalog; disabledTools = new Set(c.disabledTools); devMode = c.devMode; stopped = c.stopped; overlay = c.overlay; backgroundMode = c.backgroundMode; graphEnabled = c.graphEnabled; if (!stopped) connect();
+  for (const id of c.shared) shared.add(id); for (const id of c.excluded) excluded.add(id); shareAll = c.shareAll; activityLog = c.activityLog; toolCatalog = c.toolCatalog; disabledTools = new Set(c.disabledTools); devMode = c.devMode; stopped = c.stopped; overlay = c.overlay; backgroundMode = c.backgroundMode; graphEnabled = c.graphEnabled; idleDetachMs = c.idleDetachMs; if (!stopped) connect();
 });

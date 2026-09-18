@@ -2,6 +2,7 @@ import { test } from 'bun:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -9,7 +10,7 @@ import { disabledTools } from '../src/context.ts';
 import { isConnectionGraph, PROTOCOL_VERSION, type ConnectionGraph, type Req, type ToolInfo } from '../../shared/protocol.ts';
 
 test('HTTP-only startup serves the full catalog and graph before an agent connects', async () => {
-  const companion = spawn(process.execPath, [new URL('../src/index.ts', import.meta.url).pathname, '--http-only', '--port', '0'], { stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, BROWSPARK_HTTP_GRACE_MS: '500' } });
+  const companion = spawn(process.execPath, [fileURLToPath(new URL('../src/index.ts', import.meta.url)), '--http-only', '--port', '0'], { stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, BROWSPARK_HTTP_GRACE_MS: '500' } });
   let ws: WebSocket | undefined;
   const client = new Client({ name: 'HTTP startup test', version: '0' });
   let transport: StreamableHTTPClientTransport | undefined;

@@ -30,7 +30,8 @@ const SNAPSHOT_FN = String(function snapshot(this: unknown) {
   // 'hidden': skip the element and its subtree. 'boxless': element has no box of its own (display: contents,
   // zero-size wrapper) but its children may be visible, so keep walking. true: visible.
   function visible(el: Element): boolean | 'boxless' {
-    const st = el.ownerDocument.defaultView!.getComputedStyle(el);
+    const view = el.ownerDocument.defaultView || window;
+    const st = typeof view.getComputedStyle === 'function' ? view.getComputedStyle(el) : ({} as CSSStyleDeclaration);
     if (st.display === 'none' || st.visibility === 'hidden' || el.getAttribute('aria-hidden') === 'true') return false;
     if ((el as HTMLElement).hidden) return false;
     const r = el.getBoundingClientRect();

@@ -5,7 +5,15 @@ import { saveArtifact, readArtifact, listArtifacts } from '../artifacts.ts';
 
 interface Recording { chunks: any[]; done: boolean; startedAt: number; screenshots: boolean }
 const buffers = new WeakMap<Ctx['sessions'], { tracing: Map<number, Recording>; heapChunks: Map<number, string[]> }>();
+const MAX_SUMMARIES = 50;
 const summaries = new Map<string, any>(); // artifact id -> summary (perf, profile, heap)
+const setSummary = (id: string, s: any) => {
+  if (summaries.size >= MAX_SUMMARIES) {
+    const oldest = summaries.keys().next().value;
+    if (oldest) summaries.delete(oldest);
+  }
+  summaries.set(id, s);
+};
 
 const TRACE_CATEGORIES = ['-*', 'devtools.timeline', 'disabled-by-default-devtools.timeline', 'disabled-by-default-devtools.timeline.frame', 'v8.execute', 'blink.user_timing', 'loading', 'latencyInfo', 'disabled-by-default-devtools.timeline.stack', 'disabled-by-default-v8.cpu_profiler'];
 const CAT: Record<string, string> = { EvaluateScript: 'scripting', FunctionCall: 'scripting', TimerFire: 'scripting', EventDispatch: 'scripting', XHRLoad: 'scripting', XHRReadyStateChange: 'scripting', 'v8.compile': 'scripting', 'V8.GCScavenger': 'gc', MajorGC: 'gc', MinorGC: 'gc', GCEvent: 'gc', RunMicrotasks: 'scripting', Layout: 'rendering', UpdateLayoutTree: 'rendering', RecalculateStyles: 'rendering', HitTest: 'rendering', PrePaint: 'rendering', 'ScheduleStyleRecalculation': 'rendering', Paint: 'painting', CompositeLayers: 'painting', RasterTask: 'painting', PaintImage: 'painting', 'Decode Image': 'painting', ParseHTML: 'loading', ParseAuthorStyleSheet: 'loading', ResourceSendRequest: 'network', ResourceReceiveResponse: 'network', ResourceFinish: 'network', ResourceReceivedData: 'network' };
@@ -162,7 +170,7 @@ export function registerProfilingTools(ctx: Ctx) {
         const r = finishRecording(id, 'trace');
         const summary = summarizeTrace(rec.chunks);
         const art = saveArtifact('trace', 'json', JSON.stringify({ traceEvents: rec.chunks, metadata: { source: 'browspark', tabId: id } }), `tab${id}`);
-        summaries.set(art.id, summary);
+        setSummary(art.id, summary);
         if (r) r.artifact = art.path;
         if (st) capture.push(st, 'companion.recordingComplete', `trace ${art.id}`, { artifact: art.path });
         const live = await page.evaluate(id, 'window.__bmcpVitals || {}').catch(() => ({}));
@@ -222,7 +230,7 @@ export function registerProfilingTools(ctx: Ctx) {
           json = heapChunks.get(id)!.join('');
         } finally { heapChunks.delete(id); }
         const art = saveArtifact('heapsnapshot', 'heapsnapshot', json, `tab${id}`);
-        const s = summarizeHeap(json, a.limit ?? 40); summaries.set(art.id, s);
+        const s = summarizeHeap(json, a.limit ?? 40); setSummary(art.id, s);
         const st = capture.get(id); if (st) capture.push(st, 'companion.recordingComplete', `heapsnapshot ${art.id}`, { artifact: art.path });
         return { snapshotId: art.id, artifact: art.path, bytes: art.bytes, nodes: s.nodes, totalBytes: s.totalBytes, detachedNodes: s.detachedNodes, topClasses: s.classes };
       }

@@ -9,6 +9,8 @@ import { globToRegex } from '../src/devtools/network.ts';
 import { lineDiff } from '../src/page.ts';
 import { ROOT } from './harness.ts';
 import { saveArtifact, readArtifact, listArtifacts } from '../src/artifacts.ts';
+import { allowedByPolicy } from '../src/devtools/intercept.ts';
+import { recorder, type Flow } from '../src/devtools/recorder.ts';
 
 test('source map: generated <-> original round trip on the test app', () => {
   if (!existsSync(join(ROOT, 'test-apps/dist/app.js.map'))) spawnSync('bun', ['build', 'test-apps/src/app.ts', '--outdir', 'test-apps/dist', '--sourcemap=linked', '--format=iife'], { cwd: ROOT });
@@ -51,4 +53,23 @@ test('artifacts round trip and kind preservation', async () => {
   assert.ok(foundA && foundA.kind === 'trace', `expected kind trace, got ${foundA?.kind}`);
   assert.ok(foundB && foundB.kind === 'heapsnapshot', `expected kind heapsnapshot, got ${foundB?.kind}`);
   rmSync(process.env.BROWSPARK_ARTIFACTS, { recursive: true, force: true });
+});
+
+test('domain policy matching handles ports and non-http schemes', () => {
+  assert.equal(allowedByPolicy('http://localhost:3000/api', { block: ['localhost:3000'] }), false);
+  assert.equal(allowedByPolicy('http://localhost:3000/api', { block: ['localhost'] }), false);
+  assert.equal(allowedByPolicy('http://example.com/api', { allow: ['example.com:8080'] }), true);
+  assert.equal(allowedByPolicy('http://sub.example.com', { allow: ['example.com'] }), true);
+  assert.equal(allowedByPolicy('data:image/png;base64,...', { block: ['*'] }), true);
+  assert.equal(allowedByPolicy('about:blank', { block: ['*'] }), true);
+});
+
+test('recorder flows are bounded in memory', () => {
+  for (let i = 0; i < 60; i++) {
+    const f: Flow = { id: `flow-${i}`, name: `flow-${i}`, createdAt: new Date().toISOString(), params: [], steps: [] };
+    recorder.setFlow(f);
+  }
+  assert.ok(recorder.flows.size <= 50, `expected max 50 flows, got ${recorder.flows.size}`);
+  assert.equal(recorder.flows.has('flow-0'), false, 'oldest flow should have been evicted');
+  assert.equal(recorder.flows.has('flow-59'), true, 'newest flow should be present');
 });

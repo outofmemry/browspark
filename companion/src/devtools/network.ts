@@ -5,6 +5,7 @@ import { type Ctx, tool, tabArg, matcher, paginate, pageArgs, clip } from '../co
 import { saveArtifact } from '../artifacts.ts';
 import type { NetReq, TabState } from './capture.ts';
 import { applyFetch, policies, allowedByPolicy } from './intercept.ts';
+import { version as VERSION } from '../../../package.json';
 
 export const globToRegex = (glob: string) => new RegExp('^' + glob.split('*').map((s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$', 'i');
 
@@ -104,7 +105,7 @@ export function registerNetworkTools(ctx: Ctx) {
       }
       case 'har': {
         const entries = st.network.filter((r) => r.status !== undefined || r.failed).map((r) => harEntry(r));
-        const art = saveArtifact('har', 'har', JSON.stringify({ log: { version: '1.2', creator: { name: 'browspark', version: '0.2.0' }, pages: [], entries } }, null, 1), new URL(st.network[0]?.url ?? 'http://x').host);
+        const art = saveArtifact('har', 'har', JSON.stringify({ log: { version: '1.2', creator: { name: 'browspark', version: VERSION }, pages: [], entries } }, null, 1), new URL(st.network[0]?.url ?? 'http://x').host);
         return `Wrote ${entries.length} entries to ${art.path} (${art.bytes} bytes). Opens in Chrome DevTools > Network > import.`;
       }
       case 'throttle': {
