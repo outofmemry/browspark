@@ -447,7 +447,7 @@ describe.skipIf(skip)('developer mode e2e', () => {
     if (process.env.E2E_LIGHTHOUSE) { const lh = await c.okJson('devtools_lighthouse', { tabId: id, categories: ['performance'], timeoutMs: 300_000 }); assert.ok(lh.scores.performance > 0 && existsSync(lh.reports.html)); }
 
     // second context in parallel, with our own extension loaded into it
-    const w = await c.ok('browser_session', { action: 'launch', context: 'work', headless: true, url: url2 + 'debug.html', extensions: [join(ROOT, 'extension')] });
+    const w = await c.ok('browser_session', { action: 'launch', context: 'work', headless: true, url: url2 + 'debug.html', extensions: [join(ROOT, 'dist/chromium-extension')] });
     assert.match(w, /context "work"/); assert.match(w, /extensions: \w+/); assert.match(w, /CDP endpoint: ws:\/\//);
     const st = await c.ok('browser_session', { action: 'status' }); assert.match(st, /\[default\]/); assert.match(st, /\[work\]/);
     assert.ok((await c.okJson('browser_session', { action: 'contexts' })).some((x: any) => x.name === 'work' && x.running));

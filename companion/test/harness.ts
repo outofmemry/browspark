@@ -48,7 +48,7 @@ export async function launchExtensionChrome(executable = CHROME): Promise<Ext> {
   };
   try {
     cdp = await Cdp.connect(profile);
-    const { id: extId } = await cdp.send('Extensions.loadUnpacked', { path: join(ROOT, 'extension') });
+    const { id: extId } = await cdp.send('Extensions.loadUnpacked', { path: join(ROOT, 'dist/chromium-extension') });
     return { chrome, cdp, profile, extId, cleanup };
   } catch (error) { await cleanup(); throw spawnError ?? error; }
 }

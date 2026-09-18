@@ -80,7 +80,7 @@ beforeAll(async () => {
   profile = mkdtempSync(join(tmpdir(), 'bmcp-e2e-'));
   chrome = spawn(CHROME, [`--user-data-dir=${profile}`, '--remote-debugging-port=0', '--enable-unsafe-extension-debugging', '--no-first-run', '--no-default-browser-check', '--window-size=1200,900', 'about:blank'], { stdio: 'ignore' });
   cdp = await Cdp.connect(profile);
-  const { id: extId } = await cdp.send('Extensions.loadUnpacked', { path: join(ROOT, 'extension') });
+  const { id: extId } = await cdp.send('Extensions.loadUnpacked', { path: join(ROOT, 'dist/chromium-extension') });
 
   // companion over stdio, as an MCP client would run it
   client = new Client({ name: 'e2e', version: '0' });
