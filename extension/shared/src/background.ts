@@ -39,6 +39,7 @@ let connectionAttempt = 0;
 let ws: WebSocket | undefined;
 let stopped = false;
 let lastError: string | undefined;
+let settingsFailed = false; // a failed settings read leaves defaults in place until a later load succeeds
 let backoff = 1000;
 let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 let connectionTimer: ReturnType<typeof setTimeout> | undefined;
@@ -225,8 +226,19 @@ async function connect(force = false) {
       previous.close(1000, 'reconnecting');
     });
   }
-  const { port } = await cfg();
+  const c = await cfg();
+  if (settingsFailed) {
+    // The startup settings read failed and left defaults behind (no disabled tools,
+    // devMode auto, no shared tabs). Re-apply the full stored config now, not just the port.
+    for (const id of c.shared) shared.add(id); for (const id of c.excluded) excluded.add(id);
+    shareAll = c.shareAll; activityLog = c.activityLog; toolCatalog = c.toolCatalog;
+    disabledTools = new Set(c.disabledTools); devMode = c.devMode; stopped = c.stopped;
+    overlay = c.overlay; backgroundMode = c.backgroundMode; graphEnabled = c.graphEnabled;
+    idleDetachMs = c.idleDetachMs;
+    settingsFailed = false;
+  }
   if (attempt !== connectionAttempt || stopped) return;
+  const { port } = c;
   let sock: WebSocket;
   try { sock = new WebSocket(`ws://127.0.0.1:${port}`); }
   catch { connecting = false; lastError = 'Invalid bridge address. Check the port in Settings.'; return; }
@@ -404,4 +416,9 @@ const ready = cfg().then(async (c) => {
   browserSessionId = typeof session.browserSessionId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(session.browserSessionId) ? session.browserSessionId : crypto.randomUUID();
   await api.storage.local.set({ instanceId }); await api.storage.session.set({ browserSessionId });
   for (const id of c.shared) shared.add(id); for (const id of c.excluded) excluded.add(id); shareAll = c.shareAll; activityLog = c.activityLog; toolCatalog = c.toolCatalog; disabledTools = new Set(c.disabledTools); devMode = c.devMode; stopped = c.stopped; overlay = c.overlay; backgroundMode = c.backgroundMode; graphEnabled = c.graphEnabled; idleDetachMs = c.idleDetachMs; if (!stopped) connect();
+}).catch((e) => {
+  // A storage failure must not brick the worker: keep the module defaults, surface
+  // the error in the dashboard, and let a later connect re-apply the full settings.
+  settingsFailed = true;
+  lastError = `Could not read extension settings: ${e instanceof Error ? e.message : String(e)}`;
 });
