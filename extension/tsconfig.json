@@ -1,5 +1,7 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": { "types": ["chrome"], "lib": ["ES2022", "DOM", "DOM.Iterable"] },
-  "include": ["src", "../shared"]
+  // extension/shared is the only TypeScript source (extension/chromium and
+  // extension/firefox hold just manifests); ../shared is the cross-process protocol.
+  "include": ["shared", "../shared"]
 }
