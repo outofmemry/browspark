@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { Sessions, profileDirFor } from '../src/session.ts';
 import type { Bridge } from '../src/bridge.ts';
 import { allocateDevTabId } from '../src/cdp.ts';
-import { FirefoxDOM } from '../src/firefox-dom.ts';
+import { FirefoxDOM } from '../../shared/firefox-dom.ts';
 import { firefoxUnsupportedTool } from '../src/firefox-support.ts';
 import { decodeBiDiValue, firefoxProxy } from '../src/firefox.ts';
 

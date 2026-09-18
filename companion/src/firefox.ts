@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { WebSocket } from 'ws';
 import { allocateDevTabId, type DevTab, type Download, type LaunchOptions } from './cdp.ts';
 import { FirefoxNetwork } from './firefox-network.ts';
-import { FirefoxDOM } from './firefox-dom.ts';
+import { FirefoxDOM } from '../../shared/firefox-dom.ts';
 import { findBrowser } from './browsers.ts';
 
 export const findFirefox = (explicit?: string): string => findBrowser('firefox', explicit);
