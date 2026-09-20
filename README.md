@@ -15,7 +15,7 @@ Agent work stays in the background by default. Change **Settings → Work in bac
 
 ## Install
 > [!NOTE]
-> Browspark is in early release. If something breaks, please [open an issue](https://github.com/uncaughterrs/browspark/issues).
+> Browspark is in early release. If something breaks, please [open an issue](https://github.com/outofmemry/browspark/issues).
 
 Requires [Bun](https://bun.sh) and a supported browser. Chrome, Brave, Firefox and Zen can share existing tabs through their matching extension; all four also support separate developer sessions.
 
@@ -37,7 +37,7 @@ claude mcp add browspark -- bunx browspark-mcp@latest
 
 Codex, OpenCode, Cursor, Antigravity and Muse Code are covered in the [connect guide](https://docs.browspark.krishm.dev/connect/agents).
 
-**2. Get the extension.** Download `browspark-extension.zip` from the [latest release](https://github.com/uncaughterrs/browspark/releases/latest) and unzip it, or clone this repo and run `bun install && bun run build` to use the `dist/chromium-extension/` folder. Open `chrome://extensions` in Chrome or `brave://extensions` in Brave, turn on Developer mode, choose **Load unpacked** and select that folder. Repeat in each browser profile you want to connect; they can all use the same companion.
+**2. Get the extension.** Download `browspark-extension.zip` from the [latest release](https://github.com/outofmemry/browspark/releases/latest) and unzip it, or clone this repo and run `bun install && bun run build` to use the `dist/chromium-extension/` folder. Open `chrome://extensions` in Chrome or `brave://extensions` in Brave, turn on Developer mode, choose **Load unpacked** and select that folder. Repeat in each browser profile you want to connect; they can all use the same companion.
 
 **3. Share tabs.** Open each extension dashboard and share the tabs the agent may use. The [Graph page](https://docs.browspark.krishm.dev/dashboard/graph) shows agents and browsers on a draggable canvas with logos and animated connections; toggle it in Settings. Ask the agent to call `browser_status` to select a listed `tabId` or use its `browserId` when opening a new tab. Sharing permissions stay separate in each browser profile.
 

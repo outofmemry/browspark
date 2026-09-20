@@ -19,7 +19,7 @@ The setup script covers everything on this page for the common case: it download
 curl -fsSL https://browspark.krishm.dev/setup.sh | bash
 ```
 
-`bash setup.sh --test` is a dry run: it prints every command and file it would write without touching anything. The script lives at [`setup.sh`](https://github.com/uncaughterrs/browspark/blob/main/setup.sh) in the repo.
+`bash setup.sh --test` is a dry run: it prints every command and file it would write without touching anything. The script lives at [`setup.sh`](https://github.com/outofmemry/browspark/blob/main/setup.sh) in the repo.
 
 The setup script downloads the Chromium extension. Firefox and Zen use the separate source-built package below; both extension builds can connect to one companion at the same time.
 
@@ -70,7 +70,7 @@ Use the Chromium package for Chrome and Brave, or the Firefox package for Firefo
 
 <Tabs>
   <Tab title="Release zip">
-    Download `browspark-extension.zip` from the [latest release](https://github.com/uncaughterrs/browspark/releases/latest), unzip it, then `chrome://extensions` (Chrome) or `brave://extensions` (Brave) → **Developer mode** → **Load unpacked** → the unzipped folder. The setup script downloads and unzips it into `~/browspark-extension`; load it in each browser profile you want to connect.
+    Download `browspark-extension.zip` from the [latest release](https://github.com/outofmemry/browspark/releases/latest), unzip it, then `chrome://extensions` (Chrome) or `brave://extensions` (Brave) → **Developer mode** → **Load unpacked** → the unzipped folder. The setup script downloads and unzips it into `~/browspark-extension`; load it in each browser profile you want to connect.
   </Tab>
   <Tab title="Unpacked from source">
     ```bash

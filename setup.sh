@@ -6,7 +6,7 @@ set -euo pipefail
 
 TEST=0; [ "${1:-}" = "--test" ] && TEST=1
 
-ZIP_URL="${BROWSPARK_ZIP_URL:-https://github.com/uncaughterrs/browspark/releases/latest/download/browspark-extension.zip}"
+ZIP_URL="${BROWSPARK_ZIP_URL:-https://github.com/outofmemry/browspark/releases/latest/download/browspark-extension.zip}"
 EXT_DIR="$HOME/browspark-extension"
 PKG="browspark-mcp@latest"
 

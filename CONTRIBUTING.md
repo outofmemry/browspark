@@ -3,7 +3,7 @@
 Thanks for helping. Browspark is small and moves fast, so the rules are short.
 
 ## Before you start
-- Search [existing issues](https://github.com/uncaughterrs/browspark/issues) first. Bugs need steps to reproduce, the browser and version, and the client you use (Claude Code, Codex, Cursor…).
+- Search [existing issues](https://github.com/outofmemry/browspark/issues) first. Bugs need steps to reproduce, the browser and version, and the client you use (Claude Code, Codex, Cursor…).
 - For anything larger than a bug fix, open an issue describing the change before writing code. It saves both of us from a pull request that cannot land.
 
 ## Setup
