@@ -154,6 +154,12 @@ nav a.on .n { color: var(--fg-2); background: var(--surface); }
 .field input::placeholder { color: var(--fg-3); opacity: 1; }
 .field input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
 .field input::-webkit-inner-spin-button, .field input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.field select { flex: 1; width: 0; min-width: 0; height: 34px; padding: 0; border: 0; background: transparent; outline: none; color: var(--fg); font-size: 12px; cursor: pointer; }
+.field select:disabled { cursor: default; opacity: .55; }
+.field option { background: var(--input); color: var(--fg); }
+.graph-note { display: flex; align-items: center; gap: 8px; max-width: 330px; padding: 9px 8px 9px 12px; background: var(--accent-soft); border: 1px solid var(--accent-border); border-radius: 8px; font-size: 12px; line-height: 1.5; color: var(--fg-2); text-align: left; }
+.graph-note > svg.i { width: 14px; height: 14px; color: var(--accent); }
+.graph-note a { color: var(--accent); font-weight: 500; }
 .pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; min-height: 20px; border: 1px solid var(--border); border-radius: 4px; background: var(--callout); color: var(--fg-2); font-size: 10px; font-weight: 400; line-height: 1.4; white-space: nowrap; }
 .pill svg.i { width: 11px; height: 11px; }
 .pill.ok, .pill.accent { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-border); }

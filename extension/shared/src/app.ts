@@ -1,7 +1,7 @@
 import { isNewTab, type TabInfo } from '../../../shared/protocol.ts';
 import type { PopupMsg, State } from './state.ts';
 import { api, FIREFOX_PERMISSIONS } from './browser.ts';
-import { graphBrand } from './brands.ts';
+import { graphBrand, labelOptions } from './brands.ts';
 import { graphPosition, graphCurve, syncGraphCanvas, zoomGraph, resetGraphLayout } from './graph-canvas.ts';
 
 // ---------- helpers ----------
@@ -292,8 +292,9 @@ const graphCompact = matchMedia('(max-width: 680px)');
 graphCompact.addEventListener('change', () => { if (route === 'graph') repaint(); });
 
 function viewGraph(s: State) {
-  const header = pageHeader('Graph', 'See the agents and browsers connected through your local companion.',
-    h('a', { class: 'btn', href: '#/settings' }, icon('settings'), 'Settings'));
+  const note = h('div', { class: 'graph-note', role: 'note' }, icon('shield'),
+    h('span', {}, 'Wrong name or logo? This browser may hide its identity — set the ', h('a', { href: '#/settings' }, 'Browser label'), '.'));
+  const header = pageHeader('Graph', 'See the agents and browsers connected through your local companion.', note);
   if (!s.graphEnabled) return h('div', { class: 'page' }, header,
     h('div', { class: 'card' }, empty('graph', 'Connection graph is off', 'Enable Connection graph in Settings to show this page in the sidebar.', h('a', { class: 'btn primary', href: '#/settings' }, 'Open Settings'))));
   if (!s.connected) return h('div', { class: 'page' }, header,
@@ -488,6 +489,9 @@ function viewSettings(s: State) {
     h('div', { class: 'card', style: 'margin-bottom:16px' },
       h('div', { class: 'card-h' }, h('h2', {}, 'Companion')),
       h('div', { class: 'setting' }, h('div', {}, h('h3', {}, 'Bridge port'), h('p', {}, 'Use the same port in each browser profile to connect to one companion. Change it if you run the companion with ', h('code', {}, '--port'), '.')), h('div', { class: 'ctl' }, h('label', { class: 'field narrow' }, port))),
+      h('div', { class: 'setting' }, h('div', {}, h('h3', {}, 'Browser label'), h('p', {}, 'Shown in the Graph with its logo. Auto detects this browser; pick a name when it is misidentified (for example Helium or Dia reporting as Chrome).')), h('div', { class: 'ctl' }, h('label', { class: 'field' }, h('select', { id: 'browser-label', 'aria-label': 'Browser label', disabled: connectionBusy(s), onchange: (e: Event) => { const v = (e.target as HTMLSelectElement).value; if (v !== s.customBrowser) ask({ type: 'setCustomBrowser', name: v }).then(paint); } },
+        h('option', { value: '' }, 'Auto'),
+        ...labelOptions(s.browserEngine ?? 'chromium').map((n) => h('option', { value: n, selected: s.customBrowser === n }, n)))))),
       h('div', { class: 'setting' }, h('div', {}, h('h3', {}, 'Connection'), h('p', s.connected ? { 'data-ago': String(s.connectedAt), 'data-ago-fmt': 'Connected for {ago}.' } : {}, s.connecting ? 'Reconnecting… Waiting for the companion.' : s.connected ? `Connected for ${ago(s.connectedAt!)}.` : `Disconnected.${s.lastError ? ' ' + s.lastError : ''}`)), h('div', { class: 'ctl' }, h('button', { id: 'reconnect', class: 'btn ghost', 'aria-label': 'Reconnect', disabled: connectionBusy(s), 'aria-busy': String(connectionBusy(s)), onclick: () => changeConnection({ type: 'connect' }) }, s.connecting ? spinner() : icon('refresh'), s.connecting ? 'Reconnecting…' : 'Reconnect'), h('button', { class: 'btn primary', disabled: connectionBusy(s), 'aria-busy': String(connectionBusy(s)), onclick: save }, 'Save')))),
     h('div', { class: 'card', style: 'margin-bottom:16px' },
       h('div', { class: 'card-h' }, h('h2', {}, 'Dashboard')),
@@ -532,7 +536,7 @@ function tick() {
 /** Older workers (before an extension reload) omit newer fields; never let that blank the page. */
 function normalize(s: Partial<State> | undefined): State {
   const x = (s ?? {}) as Partial<State>;
-  const defaults: State = { connected: false, connecting: false, stopped: false, shareAll: false, activityLog: false, overlay: true, backgroundMode: true, graphEnabled: true, port: 9223, extensionVersion: '?', windows: [], tabs: [], recent: [], totals: { ops: 0, errors: 0 }, toolCatalog: [], disabledTools: [], devMode: 'auto' };
+  const defaults: State = { connected: false, connecting: false, stopped: false, shareAll: false, activityLog: false, overlay: true, backgroundMode: true, graphEnabled: true, port: 9223, customBrowser: '', extensionVersion: '?', windows: [], tabs: [], recent: [], totals: { ops: 0, errors: 0 }, toolCatalog: [], disabledTools: [], devMode: 'auto' };
   const out: State = { ...defaults, ...x } as State;
   for (const k of ['windows', 'tabs', 'recent', 'toolCatalog', 'disabledTools'] as const) if (!Array.isArray(out[k])) (out as any)[k] = [];
   if (!out.totals) out.totals = { ops: 0, errors: 0 };
@@ -560,7 +564,7 @@ function paintInner(s: State) {
   // preserve focus and caret across re-renders
   const a = document.activeElement as HTMLInputElement | null;
   const keep = a && a.id && 'selectionStart' in a ? { id: a.id, value: a.value, s: a.selectionStart, e: a.selectionEnd } : null;
-  const drafts = sameRoute ? [...main.querySelectorAll<HTMLInputElement>('#port')].filter((el) => el.value !== el.defaultValue).map((el) => ({ id: el.id, value: el.value })) : [];
+  const drafts = sameRoute ? [...main.querySelectorAll<HTMLInputElement>('#port,#browser-label')].filter((el) => el.value !== el.defaultValue).map((el) => ({ id: el.id, value: el.value })) : [];
   renderShell(s);
   document.title = `${NAV.find((n) => n[0] === route)?.[2] ?? 'Browspark'} · Browspark`;
   // The worker only picks up new code when the extension is reloaded; this page reloads on its own. Detect the mismatch.
