@@ -28,6 +28,8 @@ export interface State {
   /** Cyan halo, cursor and Stop pill on tabs while the agent works. */
   overlay: boolean;
   backgroundMode: boolean;
+  /** Manual graph label for browsers that spoof client hints; blank means auto-detect. */
+  customBrowser: string;
   port: number;
   lastError?: string;
   connectedAt?: number;
@@ -40,6 +42,7 @@ export interface State {
 export type PopupMsg =
   | { type: 'getState' }
   | { type: 'setConfig'; port: number }
+  | { type: 'setCustomBrowser'; name: string }
   | { type: 'setShared'; tabIds: number[]; shared: boolean }
   | { type: 'setShareAll'; on: boolean }
   | { type: 'setActivityLog'; on: boolean }

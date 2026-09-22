@@ -7,6 +7,7 @@ Original assets retrieved on 2026-09-17 to identify connected browser profiles i
 | `chrome.svg` | [Chrome website](https://www.google.com/chrome/), [vector mark](https://www.google.com/chrome/static/images/chrome-logo-m100.svg). |
 | `chromium.png` | [Chromium source repository](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/chrome/app/theme/chromium/product_logo_256.png), original [256px product logo](https://raw.githubusercontent.com/chromium/chromium/main/chrome/app/theme/chromium/product_logo_256.png). Used for Chromium and unidentified Chromium-based browsers. |
 | `brave.svg` | [Brave website](https://brave.com/), [vector mark](https://brave.com/static-assets/images/brave-logo-sans-text.svg). |
+| `edge.svg` | [Microsoft Edge logo (Wikimedia Commons)](https://upload.wikimedia.org/wikipedia/commons/9/98/Microsoft_Edge_logo_%282019%29.svg), original Microsoft Edge wave mark. |
 | `helium.svg` | [Helium brand kit](https://helium.surf/brand), [application icon](https://helium.surf/icon/helium-app-icon.svg). |
 | `vivaldi.png` | [Vivaldi press page](https://vivaldi.com/press/), [192px website icon](https://vivaldi.com/wp-content/uploads/cropped-favicon-192x192.png). Credit: Vivaldi Technologies. |
 | `arc.svg` | [Arc website](https://arc.net/), original full-color inline navigation mark (`viewBox="0 0 40 35"`). |

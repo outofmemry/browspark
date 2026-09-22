@@ -15,6 +15,8 @@ const brands: Record<'agent' | 'browser', [RegExp, string, string, string?, stri
   ],
   browser: [
     [/^(?:google\s+)?chrome(?:[\s/]|$)/i, 'Chrome', 'browsers/chrome.svg'],
+    [/^chromium(?:[\s/]|$)/i, 'Chromium', 'browsers/chromium.png'],
+    [/^(?:microsoft\s+)?edg(?:e|a|ios)?(?:[\s/]|$)/i, 'Edge', 'browsers/edge.svg'],
     [/^brave(?:[\s/]|$)/i, 'Brave', 'browsers/brave.svg'],
     [/^helium(?:[\s/]|$)/i, 'Helium', 'browsers/helium.svg'],
     [/^vivaldi(?:[\s/]|$)/i, 'Vivaldi', 'browsers/vivaldi.png'],
@@ -25,6 +27,49 @@ const brands: Record<'agent' | 'browser', [RegExp, string, string, string?, stri
     [/^zen(?:[\s/]|$)/i, 'Zen', 'browsers/zen.svg'],
   ],
 };
+
+/**
+ * Reported browser name for the connection graph. Chromium forks often keep
+ * "Google Chrome" in client hints for compatibility, so UA tokens win over
+ * brands; unidentified browsers fall through to brands/undefined and the
+ * dashboard shows the Chromium/Firefox fallback logo by engine.
+ */
+export function detectBrowserName(brands: { brand: string; version: string }[], ua: string, info?: { name: string; version: string }): string | undefined {
+  if (info) {
+    if (/zen/i.test(ua) || /zen/i.test(info.name)) return `Zen ${/Zen\/([\d.]+)/i.exec(ua)?.[1] ?? info.version}`.trim();
+    return `${info.name} ${info.version}`.trim();
+  }
+  const has = (re: RegExp) => brands.some((b) => re.test(b.brand));
+  const ver = (re: RegExp) => re.exec(ua)?.[1];
+  const brandVer = (re: RegExp) => brands.find((b) => re.test(b.brand))?.version;
+  const edge = ver(/Edg(?:e|A|iOS)?\/([\d.]+)/i);
+  if (edge || has(/edge/i)) return `Microsoft Edge ${edge ?? brandVer(/edge/i) ?? ''}`.trim();
+  const vivaldi = ver(/Vivaldi\/([\d.]+)/i);
+  if (vivaldi || has(/vivaldi/i)) return `Vivaldi ${vivaldi ?? brandVer(/vivaldi/i) ?? ''}`.trim();
+  if (/helium/i.test(ua) || has(/helium/i)) return `Helium ${ver(/Helium\/([\d.]+)/i) ?? brandVer(/helium/i) ?? ver(/Chrome\/([\d.]+)/) ?? ''}`.trim();
+  const dia = ver(/Dia\/([\d.]+)/i);
+  if (dia || has(/\bdia\b/i)) return `Dia ${dia ?? brandVer(/\bdia\b/i) ?? ''}`.trim();
+  const arc = ver(/Arc\/([\d.]+)/i);
+  if (arc || has(/\barc\b/i)) return `Arc ${arc ?? brandVer(/\barc\b/i) ?? ''}`.trim();
+  if (has(/brave/i) || /Brave\/([\d.]+)/i.test(ua)) return `Brave ${brandVer(/brave/i) ?? ver(/Brave\/([\d.]+)/i) ?? ''}`.trim();
+  const named = brands.find((b) => !/Chromium|not.*brand/i.test(b.brand)) ?? brands.find((b) => /Chromium/.test(b.brand));
+  return named ? `${named.brand} ${named.version}` : undefined;
+}
+
+/** Dropdown options shown per engine in Settings. */
+export const labelOptions = (engine: 'chromium' | 'firefox'): string[] => engine === 'firefox'
+  ? ['Firefox', 'Tor', 'Zen', 'Other']
+  : ['Chrome', 'Edge', 'Brave', 'Helium', 'Vivaldi', 'Arc', 'Dia', 'Chromium', 'Other'];
+
+/** Labels the Settings dropdown may store (blank is Auto). */
+export const isKnownLabel = (name: string): boolean => name === '' || /^(?:chrome|chromium|edge|brave|helium|vivaldi|arc|dia|firefox|tor|zen|other)$/i.test(name);
+
+/** Manual Settings override wins; blank falls back to automatic detection, Other to the engine's generic name. */
+export function resolveBrowserName(custom: string | undefined, brands: { brand: string; version: string }[], ua: string, info?: { name: string; version: string }, engine: 'chromium' | 'firefox' = 'chromium'): string | undefined {
+  const picked = custom?.trim();
+  if (picked?.toLowerCase() === 'other') return engine === 'firefox' ? 'Firefox' : 'Chromium';
+  return picked || detectBrowserName(brands, ua, info);
+}
 
 // Match reported products; unidentified browsers get their engine's mark.
 export function graphBrand(name: string, kind: 'agent' | 'browser', engine?: 'chromium' | 'firefox'): GraphBrand {

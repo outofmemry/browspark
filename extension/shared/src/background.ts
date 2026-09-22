@@ -5,6 +5,7 @@ import {
 import type { OpLog, PopupMsg, State } from './state.ts';
 import { api, isFirefox, FIREFOX_PERMISSIONS } from './browser.ts';
 import { createFirefoxDebugger } from './firefox-debugger.ts';
+import { isKnownLabel, resolveBrowserName } from './brands.ts';
 
 const shared = new Set<number>();
 const excluded = new Set<number>(); // explicit per-tab revocations override Share everything
@@ -45,11 +46,13 @@ let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 let connectionTimer: ReturnType<typeof setTimeout> | undefined;
 let instanceId: string;
 let browserSessionId: string;
+// Manual graph label for browsers that spoof Chrome/Chromium hints (e.g. Helium, Dia); blank means auto-detect.
+let customBrowser = '';
 
 const cfg = async () => {
-  const s = await api.storage.local.get(['port', 'shareAll', 'stopped', 'activityLog', 'toolCatalog', 'disabledTools', 'devMode', 'overlay', 'backgroundMode', 'graphEnabled', 'idleDetachMs']);
+  const s = await api.storage.local.get(['port', 'shareAll', 'stopped', 'activityLog', 'toolCatalog', 'disabledTools', 'devMode', 'overlay', 'backgroundMode', 'graphEnabled', 'idleDetachMs', 'customBrowser']);
   const ss = await api.storage.session.get(['shared', 'excluded']); // per-tab grants must not outlive the browser session
-  return { port: (s.port as number) || DEFAULT_PORT, shared: (ss.shared as number[]) || [], excluded: (ss.excluded as number[]) || [], shareAll: !!s.shareAll, stopped: !!s.stopped, activityLog: !!s.activityLog, toolCatalog: (s.toolCatalog as ToolInfo[]) || [], disabledTools: (s.disabledTools as string[]) || [], devMode: ((s.devMode as string) || 'auto') as 'auto' | 'always' | 'never', overlay: s.overlay !== false, backgroundMode: s.backgroundMode !== false, graphEnabled: s.graphEnabled !== false, idleDetachMs: (s.idleDetachMs as number) || IDLE_DETACH_MS_DEFAULT };
+  return { port: (s.port as number) || DEFAULT_PORT, shared: (ss.shared as number[]) || [], excluded: (ss.excluded as number[]) || [], shareAll: !!s.shareAll, stopped: !!s.stopped, activityLog: !!s.activityLog, toolCatalog: (s.toolCatalog as ToolInfo[]) || [], disabledTools: (s.disabledTools as string[]) || [], devMode: ((s.devMode as string) || 'auto') as 'auto' | 'always' | 'never', overlay: s.overlay !== false, backgroundMode: s.backgroundMode !== false, graphEnabled: s.graphEnabled !== false, idleDetachMs: (s.idleDetachMs as number) || IDLE_DETACH_MS_DEFAULT, customBrowser: typeof s.customBrowser === 'string' && isKnownLabel(s.customBrowser.trim()) ? s.customBrowser.trim().slice(0, 64) : '' };
 };
 const send = (m: Msg) => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)); };
 const evt = (event: Evt['event'], params?: unknown) => send({ event, params });
@@ -234,7 +237,7 @@ async function connect(force = false) {
     shareAll = c.shareAll; activityLog = c.activityLog; toolCatalog = c.toolCatalog;
     disabledTools = new Set(c.disabledTools); devMode = c.devMode; stopped = c.stopped;
     overlay = c.overlay; backgroundMode = c.backgroundMode; graphEnabled = c.graphEnabled;
-    idleDetachMs = c.idleDetachMs;
+    idleDetachMs = c.idleDetachMs; customBrowser = c.customBrowser;
     settingsFailed = false;
   }
   if (attempt !== connectionAttempt || stopped) return;
@@ -256,11 +259,19 @@ async function connect(force = false) {
   }, 10_000);
   sock.onopen = async () => {
     if (ws !== sock) return;
-    const brands = ((navigator as any).userAgentData?.brands ?? []) as { brand: string; version: string }[];
-    const named = brands.find((b) => !/Chromium|not.*brand/i.test(b.brand)) ?? brands.find((b) => /Chromium/.test(b.brand));
+    const uaData = (navigator as any).userAgentData;
+    const low = (uaData?.brands ?? []) as { brand: string; version: string }[];
+    // High-entropy hints can carry the real fork brand even when low-entropy
+    // brands are frozen to Chrome for anti-fingerprinting (e.g. Helium).
+    let high: { brand: string; version: string }[] = [];
+    try {
+      const he = await uaData?.getHighEntropyValues?.(['fullVersionList']);
+      if (Array.isArray(he?.fullVersionList)) high = he.fullVersionList;
+    } catch {}
+    const brands = [...high, ...low];
     const browserInfo = isFirefox ? await (api.runtime as any).getBrowserInfo() : undefined;
     if (ws !== sock) return;
-    const hello: HelloParams = { version: PROTOCOL_VERSION, extensionVersion: api.runtime.getManifest().version, browser: browserInfo ? `${browserInfo.name} ${browserInfo.version}` : named ? `${named.brand} ${named.version}` : undefined, browserEngine: isFirefox ? 'firefox' : 'chromium', userAgent: navigator.userAgent, instanceId, browserSessionId };
+    const hello: HelloParams = { version: PROTOCOL_VERSION, extensionVersion: api.runtime.getManifest().version, browser: resolveBrowserName(customBrowser, brands, navigator.userAgent || '', browserInfo, isFirefox ? 'firefox' : 'chromium'), browserEngine: isFirefox ? 'firefox' : 'chromium', userAgent: navigator.userAgent, instanceId, browserSessionId };
     evt('hello', hello);
     pushTabs();
     sendToolPolicy();
@@ -303,7 +314,7 @@ async function state(): Promise<State> {
   return {
     graphEnabled, graph,
     connected: ws?.readyState === WebSocket.OPEN && connectedAt !== undefined, connecting: connecting && !lastError, stopped, shareAll, activityLog, toolCatalog, disabledTools: [...disabledTools], companionVersion, devMode, overlay, backgroundMode, port, lastError, connectedAt,
-    browserEngine: isFirefox ? 'firefox' : 'chromium', firefoxHostAccess: !isFirefox || await api.permissions.contains({ origins: FIREFOX_PERMISSIONS.origins }), automationReady: !isFirefox || await api.permissions.contains(FIREFOX_PERMISSIONS),
+    customBrowser, browserEngine: isFirefox ? 'firefox' : 'chromium', firefoxHostAccess: !isFirefox || await api.permissions.contains({ origins: FIREFOX_PERMISSIONS.origins }), automationReady: !isFirefox || await api.permissions.contains(FIREFOX_PERMISSIONS),
     extensionVersion: api.runtime.getManifest().version, windows, tabs: await listTabs(), recent, totals,
   };
 }
@@ -315,6 +326,16 @@ api.runtime.onMessage.addListener((msg: PopupMsg, sender, reply) => {
     await ready; // a suspended worker restarts on this message; settings must be loaded before answering
     switch (msg.type) {
       case 'setConfig': stopped = false; await api.storage.local.set({ port: msg.port, stopped: false }); await connect(true); break;
+      case 'setCustomBrowser': {
+        const name = msg.name.trim();
+        // The dashboard only offers Auto, recognized names and Other; reject anything else.
+        if (!isKnownLabel(name)) throw new Error(`Unknown browser label: ${name}`);
+        customBrowser = name.slice(0, 64);
+        await api.storage.local.set({ customBrowser });
+        // A new hello carries the label; skip the reconnect when stopped (next connect picks it up).
+        if (!stopped && (ws || connecting)) await connect(true);
+        break;
+      }
       case 'connect': stopped = false; await api.storage.local.set({ stopped: false }); await connect(true); break;
       case 'stop': await stop(); break;
       case 'clearLog': recent.length = 0; break;
@@ -419,7 +440,7 @@ const ready = cfg().then(async (c) => {
   instanceId = typeof local.instanceId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(local.instanceId) ? local.instanceId : crypto.randomUUID();
   browserSessionId = typeof session.browserSessionId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(session.browserSessionId) ? session.browserSessionId : crypto.randomUUID();
   await api.storage.local.set({ instanceId }); await api.storage.session.set({ browserSessionId });
-  for (const id of c.shared) shared.add(id); for (const id of c.excluded) excluded.add(id); shareAll = c.shareAll; activityLog = c.activityLog; toolCatalog = c.toolCatalog; disabledTools = new Set(c.disabledTools); devMode = c.devMode; stopped = c.stopped; overlay = c.overlay; backgroundMode = c.backgroundMode; graphEnabled = c.graphEnabled; idleDetachMs = c.idleDetachMs; if (!stopped) connect();
+  for (const id of c.shared) shared.add(id); for (const id of c.excluded) excluded.add(id); shareAll = c.shareAll; activityLog = c.activityLog; toolCatalog = c.toolCatalog; disabledTools = new Set(c.disabledTools); devMode = c.devMode; stopped = c.stopped; overlay = c.overlay; backgroundMode = c.backgroundMode; graphEnabled = c.graphEnabled; idleDetachMs = c.idleDetachMs; customBrowser = c.customBrowser; if (!stopped) connect();
 }).catch((e) => {
   // A storage failure must not brick the worker: keep the module defaults, surface
   // the error in the dashboard, and let a later connect re-apply the full settings.
