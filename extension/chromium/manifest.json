@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Browspark",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Share tabs from this Chromium browser profile with a local MCP companion, alongside other connected browsers.",
   "permissions": ["debugger", "tabs", "storage", "alarms", "downloads"],
   "background": { "service_worker": "dist/background.js" },
