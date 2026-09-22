@@ -140,7 +140,9 @@ export class DirectFirefox extends EventEmitter {
       await this.connect(endpoint);
       if (this.launchCancelled) throw new Error('Development browser launch cancelled');
       const session = await this.bidi('session.new', { capabilities: { alwaysMatch: { unhandledPromptBehavior: 'ignore', ...(proxy && { proxy }) } } });
-      this.version = `${session.capabilities.browserName ?? 'Firefox'}/${session.capabilities.browserVersion ?? 'unknown'}`;
+      // Zen reports Firefox capabilities; keep the requested brand so the graph shows the Zen logo.
+      const reported = this.browserName === 'zen' ? 'Zen' : session.capabilities.browserName ?? 'Firefox';
+      this.version = `${reported}/${session.capabilities.browserVersion ?? 'unknown'}`;
       await this.bidi('session.subscribe', { events: ['browsingContext.contextCreated', 'browsingContext.contextDestroyed', 'browsingContext.navigationStarted', 'browsingContext.domContentLoaded', 'browsingContext.load', 'browsingContext.fragmentNavigated', 'browsingContext.userPromptOpened', 'browsingContext.userPromptClosed', 'log.entryAdded', 'script.realmCreated', 'script.realmDestroyed'] });
       const tree = await this.bidi('browsingContext.getTree', {});
       for (const context of tree.contexts) this.addContext(context);
