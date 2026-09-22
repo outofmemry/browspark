@@ -69,12 +69,12 @@ export const isRes = (m: Msg): m is Res => 'id' in m && !('method' in m);
 export const isEvt = (m: Msg): m is Evt => 'event' in m;
 
 /** Native New Tab pages can be shared for navigation, but not inspected directly. */
-export const isNewTab = (url: string) => /^(?:(?:chrome|brave|edge):\/\/(?:newtab|new-tab-page)\/?|about:(?:newtab|home))(?:[?#][^\s]*)?$/i.test(url);
+export const isNewTab = (url: string) => /^(?:(?:chrome|brave|edge|vivaldi):\/\/(?:newtab|new-tab-page)\/?|about:(?:newtab|home))(?:[?#][^\s]*)?$/i.test(url);
 
 /** Pages chrome.debugger refuses to attach to. */
 export function unsupportedReason(url: string, engine: 'chromium' | 'firefox' = 'chromium'): string | undefined {
   if (url === 'about:blank' || url === '') return undefined; // blank tabs can be automated
-  if (/^(chrome|chrome-extension|moz-extension|devtools|edge|brave|about|view-source):/.test(url)) return 'browser-internal page';
+  if (/^(chrome|chrome-extension|moz-extension|devtools|edge|brave|vivaldi|about|view-source):/.test(url)) return 'browser-internal page';
   if (engine === 'firefox' && /^https:\/\/(?:addons\.mozilla\.org|accounts\.firefox\.com)(?:[/:]|$)/i.test(url)) return 'Firefox protected site';
   if (engine === 'firefox' && !/^https?:\/\//i.test(url)) return 'Firefox extension supports HTTP(S) pages only';
   if (/^https:\/\/chrome(web)?store\.google\.com/.test(url)) return 'Chrome Web Store';

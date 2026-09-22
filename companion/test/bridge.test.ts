@@ -70,6 +70,8 @@ test('unsupportedReason flags internal pages', () => {
   assert.equal(unsupportedReason('https://example.com'), undefined);
   assert.equal(unsupportedReason('about:blank'), undefined);
   assert.ok(unsupportedReason('chrome://newtab/'));
+  assert.ok(unsupportedReason('vivaldi://newtab/'));
+  assert.ok(unsupportedReason('vivaldi://settings/'));
   assert.ok(unsupportedReason('moz-extension://example/app.html', 'firefox'));
   assert.ok(unsupportedReason('https://addons.mozilla.org/firefox/', 'firefox'));
   assert.ok(unsupportedReason('file:///private/example.html', 'firefox'));
@@ -84,8 +86,8 @@ test('isNewTab recognizes native Chromium and Firefox New Tab URLs', () => {
       assert.ok(unsupportedReason(url), 'New Tab is still unavailable for direct CDP inspection');
     }
   }
-  for (const url of ['about:newtab', 'about:home', 'about:newtab#section', 'brave://newtab/', 'edge://newtab/']) assert.equal(isNewTab(url), true, url);
-  for (const url of ['', 'newtab', 'chrome:newtab', 'chrome:/newtab', 'about:newtab/path', 'about:newtab-extra', 'about:blank', 'https://newtab/', 'chrome://settings/', 'chrome://newtab.example/', 'chrome://newtab-extra/', 'chrome://newtab/path', 'chrome://newtab//', 'chrome://new-tab-page-extra/', 'chrome://new-tab-page/path', 'chrome://user@newtab/', 'chrome://newtab:123/', 'chrome://settings/?next=chrome://newtab/']) {
+  for (const url of ['about:newtab', 'about:home', 'about:newtab#section', 'brave://newtab/', 'edge://newtab/', 'vivaldi://newtab/', 'vivaldi://newtab/?source=test']) assert.equal(isNewTab(url), true, url);
+  for (const url of ['', 'newtab', 'chrome:newtab', 'chrome:/newtab', 'about:newtab/path', 'about:newtab-extra', 'about:blank', 'https://newtab/', 'chrome://settings/', 'chrome://newtab.example/', 'chrome://newtab-extra/', 'chrome://newtab/path', 'chrome://newtab//', 'chrome://new-tab-page-extra/', 'chrome://new-tab-page/path', 'chrome://user@newtab/', 'chrome://newtab:123/', 'chrome://settings/?next=chrome://newtab/', 'vivaldi://settings/', 'vivaldi://startpage/']) {
     assert.equal(isNewTab(url), false, url);
   }
 });
