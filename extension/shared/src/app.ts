@@ -158,14 +158,14 @@ function firefoxAccess(s: State) {
     h('div', { class: 'body' }, h('b', {}, s.automationReady ? 'Firefox shared-tab automation' : 'Enable Firefox automation'),
       h('p', { class: 'muted' }, s.automationReady ? 'Only tabs you share are controlled. Firefox uses simulated input and an isolated script environment. Stop access here in the dashboard; the page overlay is unavailable.' : 'Allow website access and user scripts, then choose tabs to share. Firefox asks for these permissions separately.'),
       h('a', { href: 'https://docs.browspark.krishm.dev/reference/firefox', target: '_blank', rel: 'noreferrer' }, 'Firefox capabilities and exceptions'),
-      !s.automationReady ? h('button', { id: 'enable-firefox', class: 'btn primary', style: 'margin-top:12px', onclick: async () => {
+      !s.automationReady ? h('div', { style: 'margin-top:12px' }, h('button', { id: 'enable-firefox', class: 'btn primary', onclick: async () => {
         try {
           // Firefox requires the userScripts opt-in to be requested on its own, from a user gesture.
           const granted = await api.permissions.request(s.firefoxHostAccess ? { permissions: FIREFOX_PERMISSIONS.permissions } : { origins: FIREFOX_PERMISSIONS.origins });
           firefoxPermissionError = granted ? '' : 'Permission was not granted. Shared-tab automation stays disabled.';
           paint(await ask({ type: 'getState' })); repaint();
         } catch (error) { firefoxPermissionError = (error as Error).message; repaint(); }
-      } }, s.firefoxHostAccess ? 'Enable Firefox automation' : 'Allow website access') : null,
+      } }, s.firefoxHostAccess ? 'Enable Firefox automation' : 'Allow website access')) : null,
       firefoxPermissionError ? h('p', { role: 'alert', class: 'err-text' }, firefoxPermissionError) : null));
 }
 
