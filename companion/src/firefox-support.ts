@@ -45,7 +45,7 @@ export const FIREFOX_EXTENSION_LIMITATIONS = [
   'Mouse and keyboard events are simulated, not trusted native input',
   'JavaScript runs in an isolated user-script world; page globals and extension APIs are unavailable',
   'Network and console capture, request interception, cookies, PDF, file upload and JavaScript dialog handling',
-  'Cross-origin frame inspection, early-document scripts, page overlay and live screencast',
+  'Cross-origin frame inspection, early-document scripts and live screencast',
   'Raw CDP, Lighthouse, debugger, profiling, coverage and Chrome-specific DevTools features',
 ];
 export const FIREFOX_EXTENSION_DOMAINS = {

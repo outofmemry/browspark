@@ -46,7 +46,12 @@ test('Firefox extension capabilities reject unavailable collections without affe
   try {
     assert.equal((await sessions.tabs()).find(t => t.id === firefoxId)?.browser, 'firefox');
     assert.equal(bridge.connectionForTab(firefoxId)?.browserEngine, 'firefox');
+    assert.equal((page.overlay as any).enabledFor(firefoxId), true);
+    assert.equal((page.overlay as any).isFirefoxExtension(firefoxId), true);
+    assert.equal((page.overlay as any).isFirefoxExtension(chromeId), false);
+    firefox.info.policy = { disabled: [], overlay: false };
     assert.equal((page.overlay as any).enabledFor(firefoxId), false);
+    delete firefox.info.policy;
     for (const name of ['devtools_console', 'devtools_network', 'browser_upload', 'browser_click']) {
       tool(ctx, name, 'extension capability regression', { tabId: tabArg, hover: z.boolean().optional() }, async ({ tabId }) => { called.push(tabId!); return 'supported'; });
       const args = { tabId: firefoxId, ...(name === 'browser_click' && { hover: true }) };

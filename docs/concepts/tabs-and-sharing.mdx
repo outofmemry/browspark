@@ -44,13 +44,13 @@ open -a "Google Chrome" --args --silent-debugger-extension-api
 
 ## The agent overlay
 
-The overlay is available in Chromium. For Firefox or Zen extension tabs, use **Stop** or **Unshare** in the dashboard.
+The overlay is available in Chromium and Firefox. On Firefox extension tabs the in-page **Stop** button is unavailable, so use **Stop** or **Unshare** in the dashboard there.
 
 While the agent drives a shared tab, the tab shows a soft cyan halo around the page, a compact charcoal pill naming the agent, and a small dark cursor with a gray outline that travels to each element before it is clicked. Travel eases in and out over roughly 0.3–1.2 seconds depending on distance; reduced-motion preferences make it instant. The pill uses the dashboard's dark palette with a mint status dot. Clicks produce a subtle ring, and fields being typed into get a thin cyan outline. The frame fades a few seconds after the last command and returns on the next one.
 
 The pill has a **Stop** button. Pressing it revokes the tab on the spot, exactly like unsharing it from the dashboard: the debugger detaches, the agent's next command is refused, and you share the tab again when you want to resume.
 
-The overlay uses an isolated script world and a closed shadow root to separate its controls and styles from the page. Stop remains available to screen readers; decorative effects are hidden from them. Agent snapshots and text reads exclude the overlay, and screenshots and PDFs temporarily hide it. It appears on the main frame only, and each profile can switch it off from **Settings → Agent overlay**. Chromium developer-mode tabs show the frame and cursor without the Stop button, since there is nothing to unshare there.
+The overlay uses an isolated script world and a closed shadow root to separate its controls and styles from the page. Stop remains available to screen readers; decorative effects are hidden from them. Agent snapshots and text reads exclude the overlay, and screenshots and PDFs temporarily hide it. It appears on the main frame only, and each profile can switch it off from **Settings → Agent overlay**. Chromium developer-mode tabs and Firefox extension tabs show the frame and cursor without the Stop button, since there is nothing to unshare there.
 
 ## Activation
 

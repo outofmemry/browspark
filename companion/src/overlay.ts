@@ -133,17 +133,24 @@ export class Overlay {
   }
 
   private agent() { return currentClient()?.name ?? 'agent'; }
-  private enabledFor(tabId: number) { const connection = this.s.bridge?.connectionForTab(tabId); return connection ? connection.browserEngine !== 'firefox' && connection.policy?.overlay !== false : this.enabled; }
+  private enabledFor(tabId: number) { const connection = this.s.bridge?.connectionForTab(tabId); return connection ? connection.policy?.overlay !== false : this.enabled; }
+
+  /** The Firefox extension has no binding transport or preload scripts: the Stop pill stays hidden there
+   * and the overlay reinstalls lazily through an isolated user-script world on the next command after each navigation. */
+  private isFirefoxExtension(tabId: number) { return this.s.modeOf(tabId) === 'extension' && this.s.bridge?.connectionForTab(tabId)?.browserEngine === 'firefox'; }
 
   /** Install the world, the on-new-document script and (extension mode) the Stop binding once per attachment. */
   private async ensure(tabId: number): Promise<number | undefined> {
     if (!this.enabledFor(tabId)) return undefined;
+    const firefoxExtension = this.isFirefoxExtension(tabId);
     if (!this.installed.has(tabId)) {
       this.installed.add(tabId);
       await this.s.cdp(tabId, 'Runtime.enable');
       await this.s.cdp(tabId, 'Page.enable');
-      if (this.s.modeOf(tabId) === 'extension') await this.s.cdp(tabId, 'Runtime.addBinding', { name: STOP_BINDING, executionContextName: OVERLAY_WORLD });
-      await this.s.cdp(tabId, 'Page.addScriptToEvaluateOnNewDocument', { source: SCRIPT, worldName: OVERLAY_WORLD });
+      if (!firefoxExtension) {
+        if (this.s.modeOf(tabId) === 'extension') await this.s.cdp(tabId, 'Runtime.addBinding', { name: STOP_BINDING, executionContextName: OVERLAY_WORLD });
+        await this.s.cdp(tabId, 'Page.addScriptToEvaluateOnNewDocument', { source: SCRIPT, worldName: OVERLAY_WORLD });
+      }
     }
     let ctx = this.contexts.get(tabId);
     if (ctx === undefined) {

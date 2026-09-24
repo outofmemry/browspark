@@ -156,7 +156,7 @@ function firefoxAccess(s: State) {
   if (s.browserEngine !== 'firefox') return null;
   return h('div', { class: 'callout', style: 'margin-bottom:16px' }, icon('shield'),
     h('div', { class: 'body' }, h('b', {}, s.automationReady ? 'Firefox shared-tab automation' : 'Enable Firefox automation'),
-      h('p', { class: 'muted' }, s.automationReady ? 'Only tabs you share are controlled. Firefox uses simulated input and an isolated script environment. Stop access here in the dashboard; the page overlay is unavailable.' : 'Allow website access and user scripts, then choose tabs to share. Firefox asks for these permissions separately.'),
+      h('p', { class: 'muted' }, s.automationReady ? 'Only tabs you share are controlled. Firefox uses simulated input and an isolated script environment. The page overlay shows the agent at work; stop access here in the dashboard.' : 'Allow website access and user scripts, then choose tabs to share. Firefox asks for these permissions separately.'),
       h('a', { href: 'https://docs.browspark.krishm.dev/reference/firefox', target: '_blank', rel: 'noreferrer' }, 'Firefox capabilities and exceptions'),
       !s.automationReady ? h('div', { style: 'margin-top:12px' }, h('button', { id: 'enable-firefox', class: 'btn primary', onclick: async () => {
         try {
@@ -513,8 +513,8 @@ function viewSettings(s: State) {
         h('div', { class: 'ctl' }, h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: s.backgroundMode, 'aria-label': 'Work in background', onchange: (e: Event) => ask({ type: 'setBackgroundMode', on: checked(e) }).then(paint) }), h('span', {}))))),
     h('div', { class: 'card', style: 'margin-bottom:16px' },
       h('div', { class: 'card-h' }, h('h2', {}, 'Agent overlay')),
-      h('div', { class: 'setting' }, h('div', {}, h('h3', {}, 'Show the agent at work'), h('p', {}, s.browserEngine === 'firefox' ? 'The page overlay is unavailable in the Firefox extension. Use Stop access or unshare a tab in this dashboard.' : 'Show a cyan halo, moving cursor and Stop button on this profile’s tabs. Stop revokes only that tab. Developer sessions show the overlay only if every connected profile enables it.')),
-        h('div', { class: 'ctl' }, h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: s.browserEngine !== 'firefox' && s.overlay, disabled: s.browserEngine === 'firefox', 'aria-label': 'Agent overlay', onchange: (e: Event) => ask({ type: 'setOverlay', on: (e.target as HTMLInputElement).checked }).then(paint) }), h('span', {}))))),
+      h('div', { class: 'setting' }, h('div', {}, h('h3', {}, 'Show the agent at work'), h('p', {}, s.browserEngine === 'firefox' ? 'Show a cyan halo, moving cursor and status pill on this profile’s tabs. The in-page Stop button is unavailable in Firefox; stop access or unshare a tab in this dashboard.' : 'Show a cyan halo, moving cursor and Stop button on this profile’s tabs. Stop revokes only that tab. Developer sessions show the overlay only if every connected profile enables it.')),
+        h('div', { class: 'ctl' }, h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: s.overlay, 'aria-label': 'Agent overlay', onchange: (e: Event) => ask({ type: 'setOverlay', on: (e.target as HTMLInputElement).checked }).then(paint) }), h('span', {}))))),
     h('div', { class: 'card', style: 'margin-bottom:16px' },
       h('div', { class: 'card-h' }, h('h2', {}, 'Privacy')),
       h('div', { class: 'setting' }, h('div', {}, h('h3', {}, 'Activity log'), h('p', {}, s.activityLog ? 'Keeps the last 200 commands in memory for this session.' : 'Off. No command history is kept. Operations and Errors are hidden on Overview.')), h('div', { class: 'ctl' }, h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: s.activityLog, 'aria-label': 'Activity log', onchange: (e: Event) => ask({ type: 'setActivityLog', on: checked(e) }).then(paint) }))))),

@@ -39,7 +39,7 @@ The extension provides shared-tab automation through Firefox WebExtension APIs a
 | JavaScript | Evaluation in an isolated user-script world, with DOM access but without the page's JavaScript globals or extension APIs. |
 | Interaction | Ordinary left clicks, simulated keyboard events, filling, selection and scrolling. Hover, drag, non-left clicks, multiple clicks and click modifiers are unavailable. Events are untrusted (`isTrusted: false`); websites that require native input can reject them. |
 | Screenshots | Capture the selected tab through Firefox's tab-capture API. |
-| Stop controls | Unshare or stop access in the dashboard. The in-page agent overlay is unavailable. |
+| Agent overlay | Cyan halo, travelling cursor and status pill while the agent works. The in-page Stop button is unavailable; unshare or stop access in the dashboard. |
 | Network, cookies and console | Network capture/interception, network-backed policies, browser cookie APIs and console collection are unavailable. Page DOM APIs remain available through evaluation. |
 | Files and dialogs | Download tracking, PDF printing, native file upload and JavaScript dialog handling are unavailable. |
 | Developer tools | Raw CDP, Lighthouse, debugger control, early-document scripts, Chrome tracing/profiling and other native DevTools operations are unavailable. |
