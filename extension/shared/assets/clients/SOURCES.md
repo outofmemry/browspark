@@ -10,6 +10,7 @@ Original assets retrieved on 2026-09-12 for identifying setup clients. Logos bel
 | `cursor.svg`, `cursor-dark.svg` | [Cursor brand page](https://cursor.com/brand), [official asset archive](https://ptht05hbb1ssoooe.public.blob.vercel-storage.com/assets/brand/cursor-brand-assets.zip), members `General Logos/Cube/SVG/CUBE_2D_LIGHT.svg` and `CUBE_2D_DARK.svg` | ViewBox 466.73 × 532.09; original 2D cube. Use light `#26251E` and dark `#EDECEC` variants. |
 | `antigravity.png` | [Google Antigravity press assets](https://www.antigravity.google/press), [full-color icon](https://www.antigravity.google/assets/image/brand/antigravity-icon__full-color.png) | 540 × 540 transparent PNG; original multicolor mark, preserve in both themes. |
 | `muse.svg` | [Simple Icons `meta` mark](https://cdn.simpleicons.org/meta), reproducing Meta's loop mark | ViewBox 24 × 24 SVG; single-color `#0467DF` mark as supplied, same asset in both themes. Official Meta mark used to identify Muse Code. This is the Meta mark, not a dedicated Muse Code app icon. |
+| `hermes.png` | [Hermes Agent app icon](https://github.com/NousResearch/hermes-agent/blob/main/apps/desktop/assets/icon.png) | 1024 × 1024 monochrome squircle app icon; 64 × 64 transparent PNG export using macOS `sips`. Official Hermes mark, same asset in both themes (Hermes reports MCP client name `hermes-agent`). |
 
 Render with `object-fit: contain` to preserve proportions. Use the supplied dark variants for OpenCode and Cursor instead of applying CSS inversion. No asset needs a color filter.
 

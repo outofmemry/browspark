@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { detectBrowserName, graphBrand, isKnownLabel, labelOptions, resolveBrowserName } from '../../extension/shared/src/brands.ts';
 
 test('graph brands resolve reported names and use explicit fallbacks for unknown clients and browser engines', () => {
-  const agents = ['Claude', 'Codex', 'Cursor', 'OpenCode', 'Antigravity', 'Muse Code'];
+  const agents = ['Claude', 'Codex', 'Cursor', 'OpenCode', 'Antigravity', 'Muse Code', 'Hermes'];
   const browsers = ['Chrome', 'Chromium', 'Edge', 'Brave', 'Helium', 'Vivaldi', 'Arc', 'Dia', 'Firefox', 'Tor', 'Zen'];
   for (const [kind, names] of [['agent', agents], ['browser', browsers]] as const) {
     for (const name of names) {
@@ -17,7 +17,7 @@ test('graph brands resolve reported names and use explicit fallbacks for unknown
       }
     }
   }
-  for (const [name, expected, label = name] of [['claude-code', 'Claude'], ['codex-mcp-client', 'Codex'], ['cursor-vscode', 'Cursor'], ['opencode', 'OpenCode'], ['Google Antigravity', 'Antigravity'], ['muse-code', 'Muse Code'], ['Meta Muse', 'Muse Code'], ['muse-spark-1.3-contributor', 'Muse Code'], ['MuseSpark', 'Muse Code'], ['tbh', 'Muse Code', 'Muse Code'], ['tbh:tui', 'Muse Code', 'Muse Code'], ['tbh:exec', 'Muse Code', 'Muse Code'], ['tbh:desktop', 'Muse Code', 'Muse Code']]) {
+  for (const [name, expected, label = name] of [['claude-code', 'Claude'], ['codex-mcp-client', 'Codex'], ['cursor-vscode', 'Cursor'], ['opencode', 'OpenCode'], ['Google Antigravity', 'Antigravity'], ['muse-code', 'Muse Code'], ['Meta Muse', 'Muse Code'], ['muse-spark-1.3-contributor', 'Muse Code'], ['MuseSpark', 'Muse Code'], ['tbh', 'Muse Code', 'Muse Code'], ['tbh:tui', 'Muse Code', 'Muse Code'], ['tbh:exec', 'Muse Code', 'Muse Code'], ['tbh:desktop', 'Muse Code', 'Muse Code'], ['hermes-agent', 'Hermes', 'Hermes'], ['hermes-probe', 'Hermes', 'Hermes'], ['Hermes Desktop', 'Hermes', 'Hermes']]) {
     assert.equal(graphBrand(name, 'agent')?.name, expected);
     assert.equal(graphBrand(name, 'agent').label, label);
   }
