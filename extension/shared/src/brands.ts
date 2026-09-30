@@ -12,6 +12,7 @@ const brands: Record<'agent' | 'browser', [RegExp, string, string, string?, stri
     [/^(?:google[\s_-])?antigravity(?:[\s_/-]|$)/i, 'Antigravity', 'clients/antigravity.png'],
     [/^(?:meta[\s_-])?muse(?:[\s_-]?(?:code|spark))?(?:[\s_/-]|$)/i, 'Muse Code', 'clients/muse.svg'],
     [/^tbh(?:$|[:\s_./-])/i, 'Muse Code', 'clients/muse.svg', undefined, 'Muse Code'],
+    [/^hermes(?:[\s_/-]|$)/i, 'Hermes', 'clients/hermes.png', undefined, 'Hermes'],
   ],
   browser: [
     [/^(?:google\s+)?chrome(?:[\s/]|$)/i, 'Chrome', 'browsers/chrome.svg'],
