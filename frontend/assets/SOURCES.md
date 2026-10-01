@@ -12,6 +12,12 @@ Client marks were copied from the extension's officially sourced assets, retriev
 | `clients/cursor.svg` | [Cursor brand page](https://cursor.com/brand), [official asset archive](https://ptht05hbb1ssoooe.public.blob.vercel-storage.com/assets/brand/cursor-brand-assets.zip), member `General Logos/Cube/SVG/CUBE_2D_DARK.svg` | Original SVG variant intended for dark backgrounds. |
 | `clients/antigravity.png` | [Google Antigravity press assets](https://www.antigravity.google/press), [full-color icon](https://www.antigravity.google/assets/image/brand/antigravity-icon__full-color.png) | Proportional 64 × 64 transparent PNG export using macOS `sips`. |
 | `clients/muse.svg` | [Simple Icons `meta` mark](https://cdn.simpleicons.org/meta), reproducing Meta's loop mark | 24 × 24 single-color `#0467DF` SVG as supplied, used to identify Muse Code. This is the Meta mark, not a dedicated Muse Code app icon. |
+| `clients/hermes.png` | Copy of `extension/shared/assets/clients/hermes.png`, see that folder's `SOURCES.md` | Same official Hermes squircle app icon as the dashboard graph uses. |
+| `clients/cline.png` | [Cline official favicon](https://cline.bot/assets/branding/favicons/favicon-256x256.png) | Original 256 × 256 PNG as supplied. |
+| `clients/kilo.svg` | [Kilo Code official favicon](https://kilocode.ai/favicon/favicon.svg?v=2) | Original SVG as supplied (dark pixel mark on a light tile). |
+| `clients/openclaw.svg` | [OpenClaw official favicon](https://openclaw.ai/favicon.svg) | Original SVG as supplied. |
+| `clients/pi.svg` | [Pi official favicon](https://pi.dev/favicon.svg) | Original SVG as supplied; uses `prefers-color-scheme` so the mark is light on dark backgrounds. |
+| `clients/commandcode.png` | [Command Code official favicon](https://commandcode.ai/favicon/2024/favicon-32x32.png) | Original 32 × 32 PNG as supplied. |
 
 All assets are local. Render client marks with `object-fit: contain`; no color filters are needed.
 
