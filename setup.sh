@@ -6,8 +6,10 @@ set -euo pipefail
 
 TEST=0; [ "${1:-}" = "--test" ] && TEST=1
 
-ZIP_URL="${BROWSPARK_ZIP_URL:-https://github.com/outofmemry/browspark/releases/latest/download/browspark-extension.zip}"
-EXT_DIR="$HOME/browspark-extension"
+CHROME_ZIP_URL="${BROWSPARK_ZIP_URL:-https://github.com/outofmemry/browspark/releases/latest/download/browspark-chrome-extension.zip}"
+FIREFOX_ZIP_URL="${BROWSPARK_FIREFOX_ZIP_URL:-https://github.com/outofmemry/browspark/releases/latest/download/browspark-firefox-extension.zip}"
+CHROME_DIR="$HOME/browspark-extension"
+FIREFOX_DIR="$HOME/browspark-firefox-extension"
 PKG="browspark-mcp@latest"
 
 # Palette: the dashboard's neutral dark theme with its green accent.
@@ -23,7 +25,7 @@ warn() { printf '  %s!%s %s\n' "$Y" "$X" "$*"; }
 fail() { printf '  %s✗%s %s\n' "$R" "$X" "$*" >&2; exit 1; }
 dim()  { printf '  %s%s%s\n' "$D" "$*" "$X"; }
 step() { printf '\n%s%s%s  %s%s%s\n' "$G" "$1" "$X" "$B" "$2" "$X"; }
-ask()  { printf '  %s›%s %s ' "$G" "$X" "$1" >&2; local a; read -r a < /dev/tty; printf '%s' "$a"; }
+ask()  { printf '  %s›%s %s ' "$G" "$X" "$1" >&2; local reply=; read -r reply < /dev/tty || true; printf '%s' "$reply"; }
 # In --test mode, print the change instead of making it.
 run()  { if [ "$TEST" = 1 ]; then dim "would run: $*" >&2; else "$@"; fi; }
 
@@ -46,25 +48,54 @@ else
 fi
 
 # 02 ───────────────────────────────────────────────────────────────────────────
-step 02 "Downloading the Chromium extension"
-if [ "$TEST" = 1 ]; then
-  dim "would download: $ZIP_URL"
-  dim "would unzip to:  $EXT_DIR"
-else
-  tmp=$(mktemp -t browspark.XXXXXX)
-  trap 'rm -f "$tmp"' EXIT
-  curl -fsSL "$ZIP_URL" -o "$tmp" || fail "Download failed: $ZIP_URL"
-  rm -rf "$EXT_DIR" && mkdir -p "$EXT_DIR" && unzip -qo "$tmp" -d "$EXT_DIR"
-  [ -f "$EXT_DIR/manifest.json" ] || fail "The archive did not contain an extension."
-  ok "Saved to $EXT_DIR"
-fi
+step 02 "Choose your browser extension"
+dim "1) Chrome (Chromium)"
+dim "2) Firefox (Gecko)"
+dim "3) Both"
+b=${BROWSPARK_BROWSERS:-$(ask "Choice [1]:")}
+b=${b:-1}
+RAW=""
+for n in $b; do
+  case "$n" in
+    1) RAW="$RAW chrome";;
+    2) RAW="$RAW firefox";;
+    3|all) RAW="$RAW chrome firefox";;
+  esac
+done
+BROWSERS=""
+for m in $RAW; do case " $BROWSERS " in *" $m "*) ;; *) BROWSERS="$BROWSERS $m";; esac; done
+BROWSERS=${BROWSERS# }
+[ -n "$BROWSERS" ] || fail "No browser selected."
+download_ext() { # label url dir
+  if [ "$TEST" = 1 ]; then
+    dim "would download: $2"
+    dim "would unzip to:  $3"
+  else
+    dim "Downloading $1..."
+    tmp=$(mktemp -t browspark.XXXXXX)
+    trap 'rm -f "$tmp"' EXIT
+    if [ -t 2 ]; then progress="--progress-bar"; else progress="-sS"; fi
+    # shellcheck disable=SC2086
+    curl -fSL $progress --connect-timeout 20 --max-time 300 --retry 2 "$2" -o "$tmp" || fail "Download failed: $2"
+    dim "Unpacking $1..."
+    rm -rf "$3" && mkdir -p "$3" && unzip -qo "$tmp" -d "$3"
+    [ -f "$3/manifest.json" ] || fail "The archive did not contain an extension."
+    ok "Saved $1 to $3"
+  fi
+}
+for m in $BROWSERS; do
+  case $m in
+    chrome) download_ext "Chromium extension" "$CHROME_ZIP_URL" "$CHROME_DIR";;
+    firefox) download_ext "Firefox extension" "$FIREFOX_ZIP_URL" "$FIREFOX_DIR";;
+  esac
+done
 
 # 03 ───────────────────────────────────────────────────────────────────────────
 step 03 "Choose how to run the companion"
 dim "1) bun    bunx $PKG"
 dim "2) pnpm   pnpm dlx $PKG"
 dim "3) npm    npx -y $PKG"
-a=$(ask "Package manager [1]:")
+a=${BROWSPARK_PKG:-$(ask "Package manager [1]:")}
 case "${a:-1}" in
   2) CMD=pnpm; ARGS="dlx $PKG";;
   3) CMD=npx;  ARGS="-y $PKG";;
@@ -76,11 +107,11 @@ ok "$RUN"
 
 # 04 ───────────────────────────────────────────────────────────────────────────
 step 04 "Choose your agents"
-AGENTS="claude codex opencode cursor antigravity muse"
+AGENTS="claude codex opencode cursor antigravity muse hermes other"
 i=0; for n in $AGENTS; do i=$((i+1)); dim "$i) $n"; done
-a=$(ask "Numbers separated by spaces, or 'all' [1]:")
+a=${BROWSPARK_AGENTS:-$(ask "Numbers separated by spaces, or 'all' [1]:")}
 a=${a:-1}
-[ "$a" = all ] && a="1 2 3 4 5 6"
+[ "$a" = all ] && a="1 2 3 4 5 6 7"
 CHOSEN=""
 for n in $a; do
   j=0; for name in $AGENTS; do j=$((j+1)); [ "$j" = "$n" ] && CHOSEN="$CHOSEN $name"; done
@@ -143,24 +174,44 @@ for agent in $CHOSEN; do
         try { root = JSON.parse(await Bun.file(file).text()); } catch {}
         if (root.schema_version == null) { root = { schema_version: 1, ...root }; await Bun.write(file, JSON.stringify(root, null, 2) + "\n"); }
       ' "$f"; then ok "Muse Code ($f)"; fi;;
+    hermes)
+      # Hermes reads MCP servers from ~/.hermes/config.yaml under mcp_servers.
+      f="$HOME/.hermes/config.yaml"
+      if grep -q '^[[:space:]]*browspark:' "$f" 2>/dev/null; then warn "Hermes: browspark already in $f, left unchanged."
+      elif run bun -e '
+        const [file, cmd, argsJson] = process.argv.slice(1);
+        const entry = `  browspark:\n    command: ${JSON.stringify(cmd)}\n    args: ${argsJson}\n`;
+        let text = "";
+        try { text = await Bun.file(file).text(); } catch (e) { if (await Bun.file(file).exists()) throw e; }
+        if (/^[ \t]*browspark:/m.test(text)) { console.error(`browspark already in ${file}`); process.exit(3); }
+        if (/^mcp_servers:[ \t]*$/m.test(text)) {
+          text = text.replace(/^mcp_servers:[ \t]*$/m, "mcp_servers:\n" + entry.trimEnd());
+        } else if (/^mcp_servers:/m.test(text)) {
+          console.error(`non-standard mcp_servers block in ${file}; add the entry by hand`);
+          process.exit(4);
+        } else {
+          if (text && !text.endsWith("\n")) text += "\n";
+          text += "mcp_servers:\n" + entry;
+        }
+        await Bun.write(file, text);
+      ' "$f" "$CMD" "$args_json"; then ok "Hermes ($f)"; else warn "Hermes: left $f unchanged; add browspark under mcp_servers: by hand."; fi;;
+    other)
+      dim "Other: add to your client's MCP config:"
+      dim "  $RUN";;
   esac
 done
 
 # 06 ───────────────────────────────────────────────────────────────────────────
 step 06 "Connect your browsers"
-dim "This download is for Chrome and Brave. Firefox and Zen use a separate extension build."
-say "  1. Open ${B}chrome://extensions${X} or ${B}brave://extensions${X}, switch on ${B}Developer mode${X},"
-say "     click ${B}Load unpacked${X} and pick ${G}$EXT_DIR${X}. Repeat for each browser profile."
-say "  2. Click the Browspark toolbar icon. The dashboard connects to the companion on its own;"
-say "     share the tabs your agent may use in each profile. All profiles use the same companion."
-say "  3. Ask your agent to run ${B}browser_status${X}. Use the displayed browserId to choose where"
-say "     new extension tabs open, or tabId to work in an existing tab."
-say '  Firefox 153+ / compatible Zen: clone the repo and run bun install && bun run package.'
-say '  In about:debugging, choose Load Temporary Add-on → dist/firefox-extension/manifest.json.'
-say '  Register the source companion: command bun, argument the full path to companion/src/index.ts.'
-say '  Open Browspark, enable user scripts, then share tabs. Reload after a browser restart.'
-say '  Separate Firefox / Zen developer sessions still work without an extension.'
-dim "Multiple browsers: https://docs.browspark.krishm.dev/reference/multiple-browsers"
-dim "Firefox / Zen coverage: https://docs.browspark.krishm.dev/reference/firefox"
+for m in $BROWSERS; do
+  case $m in
+    chrome)
+      say "  ${B}Chromium:${X} ${B}chrome://extensions${X} → Developer mode → Load unpacked → ${G}$CHROME_DIR${X}.";;
+    firefox)
+      say "  ${B}Firefox / Zen:${X} ${B}about:debugging${X} → Load Temporary Add-on → ${G}$FIREFOX_DIR/manifest.json${X} (reload after restart).";;
+  esac
+done
+say "  Share tabs in the Browspark dashboard, then ask your agent for ${B}browser_status${X}."
+dim "Docs: https://docs.browspark.krishm.dev"
 if [ "$TEST" = 1 ]; then printf '\n  %s●%s %sTest passed.%s Run without --test to apply.\n\n' "$G" "$X" "$B" "$X"
 else printf '\n  %s●%s %sYou are good to go.%s  %shttps://docs.browspark.krishm.dev%s\n\n' "$G" "$X" "$B" "$X" "$D" "$X"; fi
