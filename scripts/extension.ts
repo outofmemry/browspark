@@ -26,7 +26,7 @@ for (const browser of Object.keys(outputs) as (keyof typeof outputs)[]) {
 console.log('Built Chromium dist/chromium-extension/ and Firefox dist/firefox-extension/.');
 
 if (process.argv.includes('--package')) {
-  for (const [cwd, name] of [[outputs.chromium, 'browspark-extension.zip'], [outputs.firefox, 'browspark-firefox-extension.zip']] as const) {
+  for (const [cwd, name] of [[outputs.chromium, 'browspark-chrome-extension.zip'], [outputs.firefox, 'browspark-firefox-extension.zip']] as const) {
     const archive = resolve(root, 'dist', name);
     await rm(archive, { force: true });
     const child = Bun.spawn(['zip', '-qr', archive, 'manifest.json', ...staticFiles, 'dist'], { cwd, stdout: 'inherit', stderr: 'inherit' });
