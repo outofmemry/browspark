@@ -43,15 +43,15 @@ test('HTTP-only startup serves the full catalog and graph before an agent connec
     ws.send(JSON.stringify({ event: 'hello', params: { version: PROTOCOL_VERSION, extensionVersion: '0.6.0', instanceId: 'http-startup', browserSessionId: 'test', browser: 'Test browser' } }));
     policy(false);
     await new Promise(resolve => setTimeout(resolve, 1200));
-    assert.equal(catalogs[0]?.length, 43, 'catalog must be ready without an initialized MCP client');
-    assert.ok(catalogs.every(tools => tools.length === 43));
+    assert.equal(catalogs[0]?.length, 44, 'catalog must be ready without an initialized MCP client');
+    assert.ok(catalogs.every(tools => tools.length === 44));
     assert.ok(catalogs.length <= 2, `catalog feedback loop sent ${catalogs.length} catalogs`);
     assert.ok(isConnectionGraph(graph));
     assert.equal(graph.agents.length, 0, 'an eager catalog must not create a visible agent');
     assert.equal(graph.browsers[0].name, 'Test browser');
     transport = new StreamableHTTPClientTransport(new URL(url.replace('ws:', 'http:') + '/mcp'));
     await client.connect(transport);
-    assert.equal((await client.listTools()).tools.length, 43);
+    assert.equal((await client.listTools()).tools.length, 44);
     await new Promise(resolve => setTimeout(resolve, 1200));
     assert.deepEqual(graph.agents.map(agent => agent.name), ['HTTP startup test']);
     // A client that vanishes without DELETE (crash, killed test run) must leave the graph once its event stream is gone.

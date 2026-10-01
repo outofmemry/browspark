@@ -15,6 +15,7 @@ import { registerApplicationTools } from '../src/devtools/application.ts';
 import { registerEnvironmentTools } from '../src/devtools/environment.ts';
 import { registerLighthouseTools } from '../src/devtools/lighthouse.ts';
 import { registerRecorderTools } from '../src/devtools/recorder.ts';
+import { registerAuditTools } from '../src/devtools/audit.ts';
 import { fileURLToPath } from 'node:url';
 import { EXAMPLES, NOTES } from './docs-examples.ts';
 
@@ -33,7 +34,7 @@ const ctx: any = { registry: new Map(), client: { id: 'docs', name: 'docs', owne
     for (const args of list) { const r = shape.safeParse(args); if (!r.success) invalid.push(`${name} ${JSON.stringify(args)}: ${r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`); }
     tools.push({ name, description: def.description, schema: z.toJSONSchema(shape, { unrepresentable: 'any' }) });
   } } };
-for (const reg of [registerBrowserTools, registerSessionTools, registerConsoleTools, registerNetworkTools, registerSourcesTools, registerDebuggerTools, registerElementsTools, registerProfilingTools, registerApplicationTools, registerEnvironmentTools, registerLighthouseTools, registerRecorderTools]) reg(ctx);
+for (const reg of [registerBrowserTools, registerSessionTools, registerConsoleTools, registerNetworkTools, registerSourcesTools, registerDebuggerTools, registerElementsTools, registerProfilingTools, registerApplicationTools, registerEnvironmentTools, registerLighthouseTools, registerRecorderTools, registerAuditTools]) reg(ctx);
 
 if (invalid.length) { console.error('invalid examples:\n' + invalid.join('\n')); process.exit(1); }
 

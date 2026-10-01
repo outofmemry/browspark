@@ -447,6 +447,30 @@ describe.skipIf(skip)('devtools e2e (extension mode)', () => {
     await ok('devtools_session', { action: 'start', tabId });
     assert.equal((await okJson('devtools_network', { tabId, action: 'rules' })).rules.length, 0, 'mocks removed on stop');
   });
+
+  test('devtools_audit diagnoses page health, responsiveness, and captures', async () => {
+    const report = await okJson('devtools_audit', { tabId, saveReport: true });
+    assert.equal(report.url, appUrl + 'debug.html');
+    assert.equal(report.title, 'Debug Test App');
+    assert.ok(typeof report.score === 'number' && report.score >= 0 && report.score <= 100);
+    assert.ok(['A', 'B', 'C', 'D', 'F'].includes(report.grade));
+    assert.ok(['pass', 'warn', 'fail'].includes(report.status));
+    assert.ok(report.categories && typeof report.categories === 'object');
+    assert.ok('layout' in report.categories && 'accessibility' in report.categories);
+    assert.ok(Array.isArray(report.findings));
+    assert.ok(report.metrics && typeof report.metrics === 'object');
+    assert.equal(report.metrics.captureSessionActive, true);
+    assert.ok(report.reportArtifact && existsSync(report.reportArtifact));
+
+    // Filter by category
+    const layoutReport = await okJson('devtools_audit', { tabId, categories: ['layout'] });
+    assert.ok(layoutReport.findings.every((f: any) => f.category === 'layout'));
+
+    // summaryOnly
+    const summary = await okJson('devtools_audit', { tabId, summaryOnly: true });
+    assert.equal(summary.findings, undefined);
+    assert.ok(typeof summary.summary === 'string');
+  });
 });
 
 describe.skipIf(skip)('developer mode e2e', () => {

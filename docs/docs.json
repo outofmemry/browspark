@@ -141,7 +141,8 @@
               "tools/devtools/devtools_accessibility",
               "tools/devtools/devtools_security",
               "tools/devtools/devtools_lighthouse",
-              "tools/devtools/devtools_recorder"
+              "tools/devtools/devtools_recorder",
+              "tools/devtools/devtools_audit"
             ]
           }
         ]

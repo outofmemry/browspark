@@ -8,6 +8,7 @@ export const NOTES: Record<string, string> = {
   devtools_memory: 'Heap snapshots, class diffs, retainers and allocation sampling need Chromium developer mode because extensions cannot use HeapProfiler. usage and growth also work in Chromium extension mode. Firefox and Zen do not support this tool.',
   browser_key: 'Keys reach the web page only. Browser shortcuts such as opening DevTools or switching tabs are handled by the browser UI and cannot be triggered here.',
   browser_batch: 'Each step is a normal tool call. The batch stops at the first error and returns the results collected so far.',
+  devtools_audit: 'Runs in-page checks for layout overflow, broken images, WCAG accessibility, and SEO across Chromium and Firefox in both modes. Console runtime errors and network requests are inspected from active DevTools capture sessions (available in Chromium and developer-mode Firefox; Firefox extension mode does not support native capture sessions).',
 };
 
 export const EXAMPLES: Record<string, Ex> = {
@@ -119,5 +120,10 @@ export const EXAMPLES: Record<string, Ex> = {
     { title: 'Turn a literal into a parameter', args: { action: 'parameterize', flowId: 'checkout', stepIndex: 2, field: 'text', paramName: 'email' } },
     { title: 'Replay with parameters', args: { action: 'replay', flowId: 'checkout', tabId: 1234, params: { email: 'qa@example.com' } } },
     { title: 'Export as a Playwright test', args: { action: 'export', flowId: 'checkout', format: 'playwright', path: '/Users/me/tests/checkout.spec.ts' } },
+  ],
+  devtools_audit: [
+    { title: 'Full 360-degree health audit of the active page', args: { tabId: 1234 } },
+    { title: 'Check responsive layout and accessibility only', args: { tabId: 1234, categories: ['layout', 'accessibility'] } },
+    { title: 'Errors only', args: { tabId: 1234, threshold: 'errors' } },
   ],
 };

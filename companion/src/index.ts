@@ -29,6 +29,7 @@ import { registerApplicationTools } from './devtools/application.ts';
 import { registerEnvironmentTools } from './devtools/environment.ts';
 import { registerLighthouseTools } from './devtools/lighthouse.ts';
 import { registerRecorderTools } from './devtools/recorder.ts';
+import { registerAuditTools } from './devtools/audit.ts';
 import { DEFAULT_PORT } from '../../shared/protocol.ts';
 
 const portArg = process.argv.indexOf('--port');
@@ -62,7 +63,7 @@ function buildServer(label: string): McpServer {
   const client: ClientState = { id: `c${++clientSeq}`, name: label, ownedTabs: new Set() };
   clients.set(client.id, client);
   const ctx: Ctx = { server, sessions, page, capture, client, registry: new Map() };
-  for (const reg of [registerBrowserTools, registerSessionTools, registerConsoleTools, registerNetworkTools, registerSourcesTools, registerDebuggerTools, registerElementsTools, registerProfilingTools, registerApplicationTools, registerEnvironmentTools, registerLighthouseTools, registerRecorderTools]) reg(ctx);
+  for (const reg of [registerBrowserTools, registerSessionTools, registerConsoleTools, registerNetworkTools, registerSourcesTools, registerDebuggerTools, registerElementsTools, registerProfilingTools, registerApplicationTools, registerEnvironmentTools, registerLighthouseTools, registerRecorderTools, registerAuditTools]) reg(ctx);
   // Name the agent after what the MCP client calls itself (opencode, claude-code, gemini…); a relay passes the real name through.
   server.server.oninitialized = () => { const v = server.server.getClientVersion(); if (v?.name) client.name = v.name.replace(/^relay:/, ''); client.initialized = true; console.error(`browspark: agent connected: ${client.name}`); };
   server.server.onclose = () => { clients.delete(client.id); void capture.release(client.id).catch((e) => console.error(`browspark: inspection cleanup failed for ${client.name}: ${e.message}`)); console.error(`browspark: agent disconnected: ${client.name}`); };
