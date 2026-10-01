@@ -2,6 +2,10 @@
   "name": "browspark-mcp",
   "version": "0.6.6",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/outofmemry/browspark"
+  },
   "type": "module",
   "files": [
     "companion/src",
