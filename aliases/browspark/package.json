@@ -2,6 +2,10 @@
   "name": "browspark",
   "version": "0.6.6",
   "description": "Alias for browspark-mcp",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/outofmemry/browspark"
+  },
   "bin": {
     "browspark": "bin.ts"
   },
