@@ -1,0 +1,59 @@
+name: release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bun run typecheck
+      - run: bun run build
+      - run: bun run --cwd frontend build
+      - run: bun test --timeout 120000
+      - run: bun run --cwd frontend test
+      - run: bun run package
+      - name: docs in sync
+        run: bun run docs:tools && git diff --exit-code -- docs/
+      - id: check
+        name: skip if this version already released
+        run: |
+          VERSION=$(bun -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then echo "released=true" >> "$GITHUB_OUTPUT"; fi
+      - name: publish to npm
+        if: steps.check.outputs.released != 'true'
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          npm install -g npm@latest
+          publish_if_missing() { # dir
+            name=$(bun -p "require('./$1/package.json').name")
+            if npm view "$name@$VERSION" version >/dev/null 2>&1; then
+              echo "$name@$VERSION already on npm, skipping"
+            else
+              (cd "$1" && npm publish --access public --provenance)
+            fi
+          }
+          publish_if_missing .
+          for a in aliases/*; do
+            (cd "$a" && ([ "$(bun -p 'require("./package.json").version')" = "$VERSION" ] || bun pm version "$VERSION" --no-git-tag-version))
+            publish_if_missing "$a"
+          done
+      - name: github release
+        if: steps.check.outputs.released != 'true'
+        run: gh release create "v$VERSION" --target "$GITHUB_SHA" --title "$VERSION" --generate-notes dist/browspark-chrome-extension.zip dist/browspark-firefox-extension.zip
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
