@@ -82,7 +82,7 @@ Any feature, tool, or installation change must be reflected everywhere users see
 3. **Landing page** (`frontend/`): install steps, setup one-liner, tool counts, meta. Run `bun run --cwd frontend test`.
 4. **`setup.sh`**: any change to how the companion is run or where the extension comes from. Verify with `bash setup.sh --test`.
 5. **Versions**, kept identical: `package.json`, `aliases/browspark/package.json`, `extension/chromium/manifest.json`, `extension/firefox/manifest.json`. Then `bun run package` for both ZIPs.
-6. **Publish**: `bun run release` publishes `browspark-mcp` and the `browspark` alias to npm. Create a GitHub release tagged with the version and attach `dist/browspark-extension.zip` and `dist/browspark-firefox-extension.zip`. The Firefox ZIP is unsigned and loads temporarily through `about:debugging`; permanent standard Firefox installation requires Mozilla signing. `setup.sh` downloads the Chromium archive from `releases/latest`.
+6. **Publish**: `bun run release` publishes `browspark-mcp` and the `browspark` alias to npm. Create a GitHub release tagged with the version and attach `dist/browspark-chrome-extension.zip` and `dist/browspark-firefox-extension.zip`. The Firefox ZIP is unsigned and loads temporarily through `about:debugging`; permanent standard Firefox installation requires Mozilla signing. `setup.sh` downloads the chosen Chromium/Firefox archives from `releases/latest`.
 7. **Deploys are automatic on push to `main`**: Mintlify (docs, `docs/` subdirectory), Cloudflare Workers (landing page from `frontend/`, config in `frontend/wrangler.jsonc`).
 
 Data dir and env vars are `~/.browspark` and `BROWSPARK_*`.

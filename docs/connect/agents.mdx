@@ -1,6 +1,6 @@
 ---
 title: "Connect an agent"
-description: "Register the companion with Claude Code, Codex, OpenCode, Cursor, Antigravity or Muse Code over stdio."
+description: "Register the companion with Claude Code, Codex, OpenCode, Cursor, Antigravity, Muse Code or Hermes over stdio."
 ---
 
 Every stdio client runs the same command. It fetches the `browspark-mcp` package from npm on first run and caches it; `@latest` keeps it current. If the client cannot find `bunx`, use the full path to the executable (`~/.bun/bin/bunx` by default).
@@ -84,6 +84,16 @@ Add `--port 9224` (or any port) if `9223` is taken by something that is not anot
     }
     ```
     Restart Muse Code and check that Browspark is listed among its MCP servers. `mode: "optional"` means a companion failure does not stop Muse Code from launching. The setup script writes this entry for you.
+  </Tab>
+  <Tab title="Hermes">
+    Add to `~/.hermes/config.yaml`, keeping any existing servers:
+    ```yaml
+    mcp_servers:
+      browspark:
+        command: "bunx"
+        args: ["browspark-mcp@latest"]
+    ```
+    Restart Hermes and check that Browspark is listed among its MCP servers. The setup script writes this entry for you. [Hermes MCP docs](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp).
   </Tab>
 </Tabs>
 
