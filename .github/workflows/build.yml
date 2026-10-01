@@ -1,0 +1,38 @@
+name: build
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bun run typecheck
+      - run: bun run build
+      - run: bun run --cwd frontend build
+      - run: bun test --timeout 120000
+      - run: bun run --cwd frontend test
+      - name: docs in sync
+        run: bun run docs:tools && git diff --exit-code -- docs/
+
+  e2e:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: browser-actions/setup-chrome@latest
+      - run: bun install
+      - run: bun run build
+      - run: echo "CHROME=$(which google-chrome)" >> "$GITHUB_ENV"
+      - run: E2E=1 bun test --timeout 120000
