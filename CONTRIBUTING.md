@@ -29,6 +29,12 @@ Load `dist/chromium-extension/` (after `bun run build`) unpacked in Chrome or Br
 - Tool changes must keep the tool descriptions accurate, since agents read them. Run `bun run docs:tools` to regenerate the tool docs.
 - Use conventional commit messages: `feat(extension): …`, `fix(companion): …`, `docs: …`.
 
+## Branches and releases
+
+- `dev` is the default working branch; `main` is release-only. Never commit to `main` directly.
+- Branch off `dev`, open the PR against `dev`, then ship with a `dev` → `main` PR. Sync back (`main` → `dev`) after each release.
+- Merging to `main` runs the release pipeline: full build, extension ZIPs, npm publish via trusted publishing, and a version-titled GitHub release with commit notes. Bump all four version files (`package.json`, `aliases/browspark/package.json`, both extension manifests) in `dev` before opening the release PR.
+
 ## Publishing
 
 `bun run release` checks npm authentication before publishing `browspark-mcp` and its `browspark` alias. If `bun pm whoami` returns **401 Unauthorized**, refresh the registry credentials before retrying. Bun's [documented login helper](https://bun.com/docs/pm/cli/pm#whoami) can run under Bun with `bunx --bun npm login`. If using a granular access token, verify that it is valid and grants publishing access to both packages; never commit the token.
