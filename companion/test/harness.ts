@@ -33,7 +33,7 @@ export class Cdp {
 export interface Ext { chrome: ChildProcess; cdp: Cdp; profile: string; extId: string; cleanup: () => Promise<void>; msg?: (m: unknown) => Promise<any>; eval?: (expr: string) => Promise<any> }
 
 /** Launch a throwaway Chrome with the extension loaded via CDP (Chrome 137+ ignores --load-extension in branded builds). */
-export async function launchExtensionChrome(executable = CHROME): Promise<Ext> {
+export async function launchExtensionChrome(executable = CHROME, extensionPath = join(ROOT, 'dist/chromium-extension')): Promise<Ext> {
   const profile = mkdtempSync(join(tmpdir(), 'bmcp-e2e-'));
   const chrome = spawn(executable, [`--user-data-dir=${profile}`, '--remote-debugging-port=0', '--enable-unsafe-extension-debugging', '--no-first-run', '--no-default-browser-check', '--window-size=1200,900', 'about:blank'], { stdio: 'ignore' });
   let cdp: Cdp | undefined, spawnError: Error | undefined;
@@ -48,7 +48,7 @@ export async function launchExtensionChrome(executable = CHROME): Promise<Ext> {
   };
   try {
     cdp = await Cdp.connect(profile);
-    const { id: extId } = await cdp.send('Extensions.loadUnpacked', { path: join(ROOT, 'dist/chromium-extension') });
+    const { id: extId } = await cdp.send('Extensions.loadUnpacked', { path: extensionPath });
     return { chrome, cdp, profile, extId, cleanup };
   } catch (error) { await cleanup(); throw spawnError ?? error; }
 }

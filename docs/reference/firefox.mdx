@@ -42,9 +42,10 @@ The extension provides shared-tab automation through Firefox WebExtension APIs a
 | Agent overlay | Cyan halo, travelling cursor and status pill while the agent works. The in-page Stop button is unavailable; unshare or stop access in the dashboard. |
 | Network, cookies and console | Network capture/interception, network-backed policies, browser cookie APIs and console collection are unavailable. Page DOM APIs remain available through evaluation. |
 | Files and dialogs | Download tracking, PDF printing, native file upload and JavaScript dialog handling are unavailable. |
+| Other extensions | `browser_extensions` lists, inspects, enables, disables and uninstalls extensions (the user confirms) and messages extensions that accept Browspark. Options pages open in a tab but cannot be automated: the extension only automates HTTP(S) pages, and `moz-extension://` stays blocked. Needs the optional `management` permission. |
 | Developer tools | Raw CDP, Lighthouse, debugger control, early-document scripts, Chrome tracing/profiling and other native DevTools operations are unavailable. |
 
-All 44 tool names remain registered. Unsupported actions return explicit errors for the selected Firefox extension tab. Use a separate Firefox or Zen developer session when you need supported BiDi capabilities such as native input or network inspection; that session has its own profile and logins. Use Chromium developer mode for CDP or Lighthouse.
+All 45 tool names remain registered. Unsupported actions return explicit errors for the selected Firefox extension tab. Use a separate Firefox or Zen developer session when you need supported BiDi capabilities such as native input or network inspection; that session has its own profile and logins. Use Chromium developer mode for CDP or Lighthouse.
 
 ## Launch a separate Firefox or Zen developer browser
 

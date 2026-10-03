@@ -1,11 +1,12 @@
 import {
-  DEFAULT_PORT, PROTOCOL_VERSION, STOP_BINDING, isReq, isNewTab, unsupportedReason, isConnectionGraph,
+  DEFAULT_PORT, PROTOCOL_VERSION, STOP_BINDING, isReq, isNewTab, unsupportedReason, isConnectionGraph, isExtensionPage,
   type CdpParams, type ConnectionGraph, type Evt, type HelloParams, type Msg, type Req, type Res, type TabInfo, type ToolInfo,
 } from '../../../shared/protocol.ts';
 import type { OpLog, PopupMsg, State } from './state.ts';
 import { api, isFirefox, FIREFOX_PERMISSIONS } from './browser.ts';
 import { createFirefoxDebugger } from './firefox-debugger.ts';
 import { isKnownLabel, resolveBrowserName } from './brands.ts';
+import { MANAGEMENT_PERMISSION, assertTarget, getExtension, listExtensions, messageExtension, setExtensionEnabled, uninstallExtension } from './extensions.ts';
 
 const shared = new Set<number>();
 const excluded = new Set<number>(); // explicit per-tab revocations override Share everything
@@ -19,7 +20,17 @@ let companionVersion: string | undefined;
 const sendToolPolicy = () => evt('tools.policy', { disabled: [...disabledTools], haveCatalog: toolCatalog.length > 0 && !!companionVersion, devMode, overlay, graph: graphEnabled });
 const isShared = (tabId: number) => !excluded.has(tabId) && (shareAll || shared.has(tabId));
 const debuggerApi = isFirefox ? createFirefoxDebugger(api, isShared) : api.debugger;
-const tabUnsupported = (url: string) => unsupportedReason(url, isFirefox ? 'firefox' : 'chromium');
+// Options pages the agent opened with extensions.options: tab id -> owning extension id. Automatable only while the user allows it,
+// only on Chromium, and only while the tab stays inside that extension's own origin. Browspark's own pages never qualify.
+const optionsTabs = new Map<number, string>();
+let extensionsAccess = false; // user consent for the browser_extensions tool; off until enabled in the dashboard
+let extensionPages = false;   // user consent to automate options pages the agent opens
+const DEFAULT_OFF_TOOLS = ['browser_extensions']; // switched off the first time the companion offers them
+const tabUnsupported = (url: string, tabId?: number) => {
+  const owner = tabId === undefined ? undefined : optionsTabs.get(tabId);
+  if (!isFirefox && extensionPages && owner && url.startsWith(`chrome-extension://${owner}/`) && !url.startsWith(OWN)) return undefined;
+  return unsupportedReason(url, isFirefox ? 'firefox' : 'chromium');
+};
 const attached = new Set<number>();
 const agentTabs = new Set<number>();     // ordinary browser tabs the agent opened
 let devMode: 'auto' | 'always' | 'never' = 'auto';
@@ -50,21 +61,22 @@ let browserSessionId: string;
 let customBrowser = '';
 
 const cfg = async () => {
-  const s = await api.storage.local.get(['port', 'shareAll', 'stopped', 'activityLog', 'toolCatalog', 'disabledTools', 'devMode', 'overlay', 'backgroundMode', 'graphEnabled', 'idleDetachMs', 'customBrowser']);
+  const s = await api.storage.local.get(['extensionsAccess', 'extensionPages', 'port', 'shareAll', 'stopped', 'activityLog', 'toolCatalog', 'disabledTools', 'devMode', 'overlay', 'backgroundMode', 'graphEnabled', 'idleDetachMs', 'customBrowser']);
   const ss = await api.storage.session.get(['shared', 'excluded']); // per-tab grants must not outlive the browser session
-  return { port: (s.port as number) || DEFAULT_PORT, shared: (ss.shared as number[]) || [], excluded: (ss.excluded as number[]) || [], shareAll: !!s.shareAll, stopped: !!s.stopped, activityLog: !!s.activityLog, toolCatalog: (s.toolCatalog as ToolInfo[]) || [], disabledTools: (s.disabledTools as string[]) || [], devMode: ((s.devMode as string) || 'auto') as 'auto' | 'always' | 'never', overlay: s.overlay !== false, backgroundMode: s.backgroundMode !== false, graphEnabled: s.graphEnabled !== false, idleDetachMs: (s.idleDetachMs as number) || IDLE_DETACH_MS_DEFAULT, customBrowser: typeof s.customBrowser === 'string' && isKnownLabel(s.customBrowser.trim()) ? s.customBrowser.trim().slice(0, 64) : '' };
+  return { extensionsAccess: s.extensionsAccess === true, extensionPages: s.extensionPages === true, port: (s.port as number) || DEFAULT_PORT, shared: (ss.shared as number[]) || [], excluded: (ss.excluded as number[]) || [], shareAll: !!s.shareAll, stopped: !!s.stopped, activityLog: !!s.activityLog, toolCatalog: (s.toolCatalog as ToolInfo[]) || [], disabledTools: (s.disabledTools as string[]) || [], devMode: ((s.devMode as string) || 'auto') as 'auto' | 'always' | 'never', overlay: s.overlay !== false, backgroundMode: s.backgroundMode !== false, graphEnabled: s.graphEnabled !== false, idleDetachMs: (s.idleDetachMs as number) || IDLE_DETACH_MS_DEFAULT, customBrowser: typeof s.customBrowser === 'string' && isKnownLabel(s.customBrowser.trim()) ? s.customBrowser.trim().slice(0, 64) : '' };
 };
 const send = (m: Msg) => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)); };
 const evt = (event: Evt['event'], params?: unknown) => send({ event, params });
 const log = (e: Omit<OpLog, 'id'>) => { totals.ops++; if (!e.ok) totals.errors++; if (!activityLog) return; recent.unshift({ id: ++opSeq, ...e }); if (recent.length > 200) recent.pop(); };
 const foregroundRequired = "Work in background is enabled. Keep using the assigned tabId without activating it. If foreground interaction is necessary, ask the user to select the agent tab or temporarily turn off Settings → Work in background, then retry after checking the page state.";
+const OWN = api.runtime.getURL(''); // this extension's origin: its pages are never automatable
 const APP_URL = api.runtime.getURL('app.html');
 
 async function listTabs(): Promise<TabInfo[]> {
   const tabs = await api.tabs.query({});
   return tabs.filter((t) => t.id !== undefined).map((t) => ({
-    id: t.id!, url: t.url || '', title: t.title || '', shared: isShared(t.id!) && (!tabUnsupported(t.url || '') || isNewTab(t.url || '')), attached: attached.has(t.id!),
-    windowId: t.windowId, agent: agentTabs.has(t.id!) || undefined, favIconUrl: t.favIconUrl, unsupported: tabUnsupported(t.url || ''),
+    id: t.id!, url: t.url || '', title: t.title || '', shared: isShared(t.id!) && (!tabUnsupported(t.url || '', t.id) || isNewTab(t.url || '')), attached: attached.has(t.id!),
+    windowId: t.windowId, agent: agentTabs.has(t.id!) || undefined, favIconUrl: t.favIconUrl, unsupported: tabUnsupported(t.url || '', t.id),
   }));
 }
 const tabLabel = async (tabId: number) => { try { const t = await api.tabs.get(tabId); return new URL(t.url || '').host || t.title || String(tabId); } catch { return String(tabId); } };
@@ -81,11 +93,13 @@ const pushTabs = async () => evt('tabs', await listTabs());
 async function ensureAttached(tabId: number) {
   if (attached.has(tabId)) return;
   const tab = await api.tabs.get(tabId);
-  const bad = tabUnsupported(tab.url || '');
+  const bad = tabUnsupported(tab.url || '', tabId);
   if (bad) throw new Error(`Cannot attach to ${bad} (${tab.url})`);
   try { await debuggerApi.attach({ tabId }, '1.3'); }
   catch (e) {
     const m = (e as Error).message || String(e);
+    if (/different extension|Cannot access a chrome-extension/i.test(m) && !optionsTabs.has(tabId)) throw new Error(`Chromium refuses to attach the debugger to tab ${tabId} because another extension has put a frame into this page (password managers such as 1Password or Bitwarden do this on login forms). Set that extension's site access to "on click" for this site (or pause it) and retry, or use developer mode, which has no such restriction but also none of the user's logins. Original error: ${m}`);
+    if (optionsTabs.has(tabId)) throw new Error(`The browser refused to attach the debugger to this extension page (${m}). Extension pages can only be automated where the browser permits it; use developer mode with the extension loaded unpacked instead.`);
     throw new Error(/already attached/i.test(m) ? `Another extension's debugger is attached to tab ${tabId}. Chrome DevTools itself can stay open; another debugging extension cannot. Disable it for this tab and retry.` : m);
   }
   attached.add(tabId);
@@ -108,6 +122,7 @@ async function handle(req: Req): Promise<Res> {
       graph = req.params;
       return { id: req.id, result: { received: true } };
     }
+    if (req.method.startsWith('extensions.')) return { id: req.id, result: await handleExtensions(req) };
     if (isFirefox && !['tabs.list', 'tools.catalog'].includes(req.method) && !await api.permissions.contains(FIREFOX_PERMISSIONS)) throw new Error('Enable Firefox automation in the Browspark dashboard and grant website access before using this tab.');
     if (req.method === 'tabs.prepare') {
       const { tabId } = req.params as { tabId: number };
@@ -139,7 +154,11 @@ async function handle(req: Req): Promise<Res> {
         throw new Error(lastError);
       }
       toolCatalog = p.tools; companionVersion = p.version;
-      await api.storage.local.set({ toolCatalog });
+      // Sensitive tools start switched off; the user turns them on from the dashboard. Only done once per tool so a later choice sticks.
+      const seen = ((await api.storage.local.get('defaultOffSeen')).defaultOffSeen as string[] | undefined) ?? [];
+      const fresh = DEFAULT_OFF_TOOLS.filter((n) => toolCatalog.some((t) => t.name === n) && !seen.includes(n));
+      for (const n of fresh) if (!extensionsAccess) disabledTools.add(n);
+      await api.storage.local.set({ toolCatalog, ...(fresh.length && { disabledTools: [...disabledTools], defaultOffSeen: [...seen, ...fresh] }) });
       sendToolPolicy(); // the companion applies whatever the user had switched off
       return { id: req.id, result: { received: toolCatalog.length } };
     }
@@ -202,7 +221,8 @@ async function handle(req: Req): Promise<Res> {
         log({ at: t0, ms: Date.now() - t0, tabId, tabLabel: await tabLabel(tabId), method, ok: true, client });
         return { id: req.id, result };
       } catch (e) {
-        const error = (e as Error).message || String(e);
+        const raw = (e as Error).message || String(e);
+        const error = optionsTabs.has(tabId) && /different extension|Cannot access a chrome-extension/i.test(raw) ? `Chromium does not let another extension's debugger drive this extension page (${raw}). The page is open for the user to see, but it cannot be automated here; use developer mode with the extension loaded unpacked (browser_session with extensions) to automate its UI.` : raw;
         log({ at: t0, ms: Date.now() - t0, tabId, tabLabel: await tabLabel(tabId), method, ok: false, error, client });
         return { id: req.id, error: backgroundMode && /^(Input\.|Page\.captureScreenshot)/.test(method) ? `${error}. ${foregroundRequired}` : error };
       }
@@ -211,6 +231,46 @@ async function handle(req: Req): Promise<Res> {
   } catch (e) {
     return { id: req.id, error: (e as Error).message || String(e) };
   }
+}
+
+/** Consent gate and audit trail for every extensions.* request. The companion cannot reach these paths without the user's dashboard opt-in. */
+async function handleExtensions(req: Req): Promise<unknown> {
+  const p = (req.params ?? {}) as { id?: string; enabled?: boolean; message?: unknown; client?: string };
+  const t0 = Date.now();
+  let label = 'all extensions';
+  const audit = (ok: boolean, error?: string) => log({ at: t0, ms: Date.now() - t0, tabId: -1, tabLabel: label, method: req.method, ok, error, client: p.client });
+  try {
+    if (!extensionsAccess) throw new Error('Extension access is switched off. Ask the user to turn on "Other extensions" in the Browspark dashboard (Settings), then retry.');
+    if (req.method !== 'extensions.message' && !await api.permissions.contains(MANAGEMENT_PERMISSION)) throw new Error('The management permission has not been granted. Ask the user to allow it in the Browspark dashboard (Settings → Other extensions), then retry.');
+    let result: unknown;
+    if (req.method === 'extensions.list') result = await listExtensions(api);
+    else {
+      const id = assertTarget(api, p.id);
+      label = id;
+      if (req.method === 'extensions.info') result = await getExtension(api, id, true);
+      else if (req.method === 'extensions.setEnabled') {
+        if (typeof p.enabled !== 'boolean') throw new Error('enabled must be a boolean');
+        result = await setExtensionEnabled(api, id, p.enabled);
+      }
+      else if (req.method === 'extensions.uninstall') result = await uninstallExtension(api, id);
+      else if (req.method === 'extensions.message') result = { reply: await messageExtension(api, id, p.message) };
+      else if (req.method === 'extensions.options') {
+        const info = await getExtension(api, id);
+        if (!info.enabled) throw new Error(`${info.name} is disabled; enable it first.`);
+        const url = info.optionsUrl;
+        if (!url) throw new Error(`${info.name} has no options page.`);
+        if (!isExtensionPage(url) || url.startsWith(OWN) || (!isFirefox && !url.startsWith(`chrome-extension://${id}/`))) throw new Error(`${info.name} reported an options URL outside its own origin; refusing to open it.`);
+        const t = await api.tabs.create({ url, active: backgroundMode ? false : true });
+        agentTabs.add(t.id!); optionsTabs.set(t.id!, id);
+        if (extensionPages && !isFirefox) { shared.add(t.id!); excluded.delete(t.id!); await api.storage.session.set({ shared: [...shared] }); }
+        pushTabs();
+        result = { id: t.id, windowId: t.windowId, url, extensionId: id, name: info.name, automatable: extensionPages && !isFirefox };
+      }
+      else throw new Error(`Unknown method ${req.method}`);
+    }
+    audit(true);
+    return result;
+  } catch (e) { audit(false, (e as Error).message || String(e)); throw e; }
 }
 
 async function connect(force = false) {
@@ -236,7 +296,7 @@ async function connect(force = false) {
     for (const id of c.shared) shared.add(id); for (const id of c.excluded) excluded.add(id);
     shareAll = c.shareAll; activityLog = c.activityLog; toolCatalog = c.toolCatalog;
     disabledTools = new Set(c.disabledTools); devMode = c.devMode; stopped = c.stopped;
-    overlay = c.overlay; backgroundMode = c.backgroundMode; graphEnabled = c.graphEnabled;
+    overlay = c.overlay; backgroundMode = c.backgroundMode; graphEnabled = c.graphEnabled; extensionsAccess = c.extensionsAccess; extensionPages = c.extensionPages;
     idleDetachMs = c.idleDetachMs; customBrowser = c.customBrowser;
     settingsFailed = false;
   }
@@ -310,9 +370,11 @@ async function stop(persist = true) {
 
 async function state(): Promise<State> {
   const { port } = await cfg();
+  const managementGranted = await api.permissions.contains(MANAGEMENT_PERMISSION).catch(() => false);
+  const extensions = managementGranted ? await listExtensions(api).catch(() => undefined) : undefined;
   const windows = (await api.windows.getAll()).filter((w) => w.id !== undefined).map((w) => ({ id: w.id!, incognito: w.incognito }));
   return {
-    graphEnabled, graph,
+    graphEnabled, graph, managementGranted, extensionsAccess, extensionPages, extensions,
     connected: ws?.readyState === WebSocket.OPEN && connectedAt !== undefined, connecting: connecting && !lastError, stopped, shareAll, activityLog, toolCatalog, disabledTools: [...disabledTools], companionVersion, devMode, overlay, backgroundMode, port, lastError, connectedAt,
     customBrowser, browserEngine: isFirefox ? 'firefox' : 'chromium', firefoxHostAccess: !isFirefox || await api.permissions.contains({ origins: FIREFOX_PERMISSIONS.origins }), automationReady: !isFirefox || await api.permissions.contains(FIREFOX_PERMISSIONS),
     extensionVersion: api.runtime.getManifest().version, windows, tabs: await listTabs(), recent, totals,
@@ -352,6 +414,25 @@ api.runtime.onMessage.addListener((msg: PopupMsg, sender, reply) => {
         if (typeof msg.on !== 'boolean') throw new Error('backgroundMode must be a boolean');
         await api.storage.local.set({ backgroundMode: msg.on }); backgroundMode = msg.on; break;
       case 'setOverlay': overlay = msg.on; await api.storage.local.set({ overlay }); sendToolPolicy(); break;
+      case 'setExtensionsAccess': {
+        if (typeof msg.on !== 'boolean') throw new Error('on must be a boolean');
+        if (msg.on && !await api.permissions.contains(MANAGEMENT_PERMISSION)) throw new Error('Grant the management permission first.');
+        extensionsAccess = msg.on;
+        // One switch for the user: consent also turns the tool on or off in the Tools page.
+        for (const n of DEFAULT_OFF_TOOLS) { if (msg.on) disabledTools.delete(n); else disabledTools.add(n); }
+        await api.storage.local.set({ extensionsAccess, disabledTools: [...disabledTools] }); sendToolPolicy(); break;
+      }
+      case 'setExtensionPages': {
+        if (typeof msg.on !== 'boolean') throw new Error('on must be a boolean');
+        extensionPages = msg.on;
+        if (!extensionPages) for (const id of [...optionsTabs.keys()]) { shared.delete(id); if (attached.has(id)) await detach(id); }
+        await api.storage.local.set({ extensionPages }); await api.storage.session.set({ shared: [...shared] }); pushTabs(); break;
+      }
+      case 'setExtensionEnabled': {
+        // The user's own dashboard action: no agent consent involved, but still never Browspark itself.
+        const id = assertTarget(api, msg.id);
+        await setExtensionEnabled(api, id, !!msg.enabled); break;
+      }
       case 'setToolEnabled':
         if (msg.enabled) disabledTools.delete(msg.name); else disabledTools.add(msg.name);
         await api.storage.local.set({ disabledTools: [...disabledTools] }); sendToolPolicy(); break;
@@ -399,7 +480,7 @@ debuggerApi.onEvent.addListener((source, method, params) => {
 });
 /** The user pressed Stop on the overlay: revoke the tab and release any inspection hold. Unlike unsharing (which preserves holds so re-sharing resumes protection), Stop is a full reset for the tab. */
 async function stopTab(tabId: number) {
-  excluded.add(tabId); shared.delete(tabId); agentTabs.delete(tabId); held.delete(tabId);
+  excluded.add(tabId); shared.delete(tabId); agentTabs.delete(tabId); held.delete(tabId); optionsTabs.delete(tabId);
   await api.storage.session.set({ shared: [...shared], excluded: [...excluded] });
   if (attached.has(tabId)) { attached.delete(tabId); try { await debuggerApi.detach({ tabId }); } catch {} evt('detached', { tabId, reason: 'stopped by user' }); }
   pushTabs();
@@ -413,7 +494,7 @@ debuggerApi.onDetach.addListener(({ tabId }, reason) => {
 api.tabs.onRemoved.addListener((tabId) => {
   const wasShared = shared.delete(tabId), wasExcluded = excluded.delete(tabId);
   if (wasShared || wasExcluded) api.storage.session.set({ shared: [...shared], excluded: [...excluded] });
-  attached.delete(tabId); agentTabs.delete(tabId); held.delete(tabId); lastUsed.delete(tabId);
+  attached.delete(tabId); agentTabs.delete(tabId); held.delete(tabId); lastUsed.delete(tabId); optionsTabs.delete(tabId);
   pushTabs();
 });
 
@@ -440,7 +521,7 @@ const ready = cfg().then(async (c) => {
   instanceId = typeof local.instanceId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(local.instanceId) ? local.instanceId : crypto.randomUUID();
   browserSessionId = typeof session.browserSessionId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(session.browserSessionId) ? session.browserSessionId : crypto.randomUUID();
   await api.storage.local.set({ instanceId }); await api.storage.session.set({ browserSessionId });
-  for (const id of c.shared) shared.add(id); for (const id of c.excluded) excluded.add(id); shareAll = c.shareAll; activityLog = c.activityLog; toolCatalog = c.toolCatalog; disabledTools = new Set(c.disabledTools); devMode = c.devMode; stopped = c.stopped; overlay = c.overlay; backgroundMode = c.backgroundMode; graphEnabled = c.graphEnabled; idleDetachMs = c.idleDetachMs; customBrowser = c.customBrowser; if (!stopped) connect();
+  for (const id of c.shared) shared.add(id); for (const id of c.excluded) excluded.add(id); shareAll = c.shareAll; activityLog = c.activityLog; toolCatalog = c.toolCatalog; disabledTools = new Set(c.disabledTools); devMode = c.devMode; stopped = c.stopped; overlay = c.overlay; backgroundMode = c.backgroundMode; graphEnabled = c.graphEnabled; extensionsAccess = c.extensionsAccess; extensionPages = c.extensionPages; idleDetachMs = c.idleDetachMs; customBrowser = c.customBrowser; if (!stopped) connect();
 }).catch((e) => {
   // A storage failure must not brick the worker: keep the module defaults, surface
   // the error in the dashboard, and let a later connect re-apply the full settings.

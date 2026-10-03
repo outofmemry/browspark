@@ -3,7 +3,7 @@ title: "Wire protocol"
 description: "The JSON messages between the companion and the extension over the local WebSocket."
 ---
 
-Defined in `shared/protocol.ts` (protocol version 2). Transport: a WebSocket from the extension's background process to `ws://127.0.0.1:<port>`. Chromium uses a service worker; Firefox uses background scripts. The first message must be `hello`; anything else, or a frame that is not a JSON object, closes the socket. Connections and requests that carry a web page's `Origin` header are refused, so pages in the browser cannot reach the companion.
+Defined in `shared/protocol.ts` (protocol version 3). Transport: a WebSocket from the extension's background process to `ws://127.0.0.1:<port>`. Chromium uses a service worker; Firefox uses background scripts. The first message must be `hello`; anything else, or a frame that is not a JSON object, closes the socket. Connections and requests that carry a web page's `Origin` header are refused, so pages in the browser cannot reach the companion.
 
 Multiple extension profiles can connect to that port simultaneously. The companion assigns each connection a `browserId` and translates browser-native tab IDs into public IDs unique across all extension and developer browsers. The extension wire messages below use native tab IDs; MCP tools use public tab IDs. Sharing is checked by the extension that owns the tab.
 
@@ -27,6 +27,12 @@ interface Evt { event: EvtName; params?: unknown }                   // either d
 | `tabs.prepare` | `{tabId}` | Prepare a shared New Tab for explicit navigation by moving it to `about:blank` |
 | `window.size` | `{tabId, width?, height?}` | Read or set the window size |
 | `downloads.list` | | The browser's download items |
+| `extensions.list` | `{client?}` | `ExtensionInfo[]` of installed extensions (needs the user's consent and the `management` permission) |
+| `extensions.info` | `{id, client?}` | One `ExtensionInfo`, with `permissionWarnings` where the browser provides them |
+| `extensions.setEnabled` | `{id, enabled, client?}` | The updated `ExtensionInfo` |
+| `extensions.uninstall` | `{id, client?}` | `{uninstalled: true, name}` after the browser's own confirmation dialog |
+| `extensions.options` | `{id, client?}` | Opens the extension's options page in a tab: `{id, windowId, url, extensionId, name, automatable}` |
+| `extensions.message` | `{id, message, client?}` | `{reply}` from `runtime.sendMessage(id, message)`: JSON only, at most 1 MB each way, 30 s timeout |
 | `tools.catalog` | `{tools: ToolInfo[], version}` | Stores the catalog for the Tools page |
 | `graph.state` | `ConnectionGraph` | `{received: true}` when accepted; `{received: false}` when this profile disabled Graph |
 | `cdp` | `{tabId, method, params?, sessionId?, client?}` | Result of the DevTools Protocol command on Chromium, or a supported Firefox adapter command. `client` names the agent for the activity log |

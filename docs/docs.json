@@ -70,6 +70,7 @@
               "guides/performance-and-memory",
               "guides/record-and-export",
               "guides/downloads-pdf-and-policies",
+              "guides/work-with-other-extensions",
               "guides/troubleshooting"
             ]
           },
@@ -97,6 +98,7 @@
               "tools/browser/browser_status",
               "tools/browser/browser_session",
               "tools/browser/browser_tabs",
+              "tools/browser/browser_extensions",
               "tools/browser/browser_navigate",
               "tools/browser/browser_snapshot",
               "tools/browser/browser_read",

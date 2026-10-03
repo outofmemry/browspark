@@ -73,7 +73,7 @@ Someone disabled it on a dashboard's Tools page. For a call targeting an extensi
 
 The operation uses a protocol domain Chrome hides from extensions (heap profiler, target, browser, raw CDP, Lighthouse). The agent may now launch `browser_session` for ten minutes under the default policy. Everything else continues in your tabs.
 
-For Firefox or Zen, an **unsupported in Firefox** message describes a limitation of the selected extension or BiDi backend. If the extension requests user-script access, enable that permission in its dashboard first. The same 44 tools are registered, but Chrome-specific actions are unavailable. Check [Firefox and Zen coverage](/reference/firefox); use a Chromium developer session when you need raw CDP, Lighthouse or Chrome profiling.
+For Firefox or Zen, an **unsupported in Firefox** message describes a limitation of the selected extension or BiDi backend. If the extension requests user-script access, enable that permission in its dashboard first. The same 45 tools are registered, but Chrome-specific actions are unavailable. Check [Firefox and Zen coverage](/reference/firefox); use a Chromium developer session when you need raw CDP, Lighthouse or Chrome profiling.
 
 ## Stale ref
 
@@ -102,3 +102,9 @@ Running context names are unique across all browser choices. Use different names
 ## Sandboxed client: module not found or handshake timeout
 
 The client's sandbox cannot see `bunx` or the package cache. Use the HTTP URL from Settings, or set the sandbox to Full Access and use full executable paths, or point it at the compiled `dist/browspark`. See [HTTP endpoint](/connect/http-endpoint).
+
+## "Another extension has put a frame into this page"
+
+Chromium refuses to attach the debugger to a tab when another extension has injected one of its own frames into it. Password managers (1Password, Bitwarden) do this on login forms, so every tool fails on that page with `Cannot access a chrome-extension:// URL of different extension`. The browser enforces this; Browspark cannot bypass it.
+
+Set the other extension's site access to **on click** for that site (or pause it) and retry. Developer mode has no such restriction, but it does not have your logins. Firefox is not affected.

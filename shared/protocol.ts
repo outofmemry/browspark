@@ -2,15 +2,28 @@
 // Requests flow companion -> extension. Events flow extension -> companion.
 
 export const DEFAULT_PORT = 9223;
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export interface Req { id: number; method: ReqMethod; params?: unknown }
 export interface Res { id: number; result?: unknown; error?: string }
 export interface Evt { event: EvtName; params?: unknown }
 export type Msg = Req | Res | Evt;
 
-export type ReqMethod = 'tabs.list' | 'tabs.create' | 'tabs.close' | 'tabs.activate' | 'tabs.hold' | 'tabs.prepare' | 'window.size' | 'downloads.list' | 'tools.catalog' | 'graph.state' | 'cdp';
+export type ReqMethod = 'tabs.list' | 'tabs.create' | 'tabs.close' | 'tabs.activate' | 'tabs.hold' | 'tabs.prepare' | 'window.size' | 'downloads.list' | 'tools.catalog' | 'graph.state' | 'extensions.list' | 'extensions.info' | 'extensions.setEnabled' | 'extensions.uninstall' | 'extensions.options' | 'extensions.message' | 'cdp';
 export type EvtName = 'hello' | 'tabs' | 'cdp.event' | 'detached' | 'ping' | 'tools.policy';
+
+/** Other installed extensions, as reported by chrome.management / browser.management. */
+export interface ExtensionInfo {
+  id: string; name: string; version: string; enabled: boolean; type: string; description?: string; homepageUrl?: string; optionsUrl?: string; installType?: string;
+  mayDisable?: boolean; permissions: string[]; hostPermissions: string[]; permissionWarnings?: string[];
+  /** This is Browspark itself: it can be listed but never managed, messaged or opened. */
+  self?: boolean;
+}
+/** Chromium ids are 32 letters a-p; Firefox ids are `name@host` or `{uuid}`. Validated before any id reaches an extension API. */
+export const isExtensionId = (v: unknown): v is string => typeof v === 'string' && (/^[a-p]{32}$/.test(v) || /^(?:\{[0-9a-fA-F-]{36}\}|[\w.+-]{1,64}@[\w.-]{1,64})$/.test(v));
+/** chrome-extension:// and moz-extension:// pages: only reachable through the explicit options flow. */
+export const isExtensionPage = (url: string) => /^(?:chrome-extension|moz-extension):\/\/[^/?#]+(?:[/?#]|$)/i.test(url);
+export const MESSAGE_LIMIT_BYTES = 1_000_000;
 
 export interface ToolInfo { name: string; description: string }
 /** Dashboard connection metadata only: never page URLs, titles, contents or grants. */

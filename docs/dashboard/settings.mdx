@@ -26,6 +26,14 @@ Whether the agent may launch separate Chrome, Brave, Firefox or Zen sessions. **
 
 On by default. Shows [Graph](/dashboard/graph) in the sidebar with the agents and browsers connected to the companion. Turning it off hides the page and stops graph updates for this profile. It does not disconnect agents or change tab sharing. The setting is saved independently in each browser profile.
 
+## Other extensions
+
+Controls the [`browser_extensions`](/tools/browser/browser_extensions) tool. **Grant permission** asks the browser for the optional `management` permission (the browser shows its own prompt). Once granted, **Let agents work with other extensions** is the consent switch: it also turns the tool on, and turning it off switches the tool off again. The tool starts switched off on every profile.
+
+**Share options pages the agent opens** (Chromium only) shares the options tab the agent opened so it can be automated. It never applies to Browspark's own pages, `chrome://extensions` or store pages.
+
+The list shows every installed extension with an enable/disable switch for your own use. Agent actions on extensions appear in [Activity](/dashboard/activity) when the activity log is on. See [Work with other extensions](/guides/work-with-other-extensions).
+
 ## Browser behavior
 
 **Work in background — Do not switch away from my active tab** is on by default and saved per browser profile. Agent-created tabs open in the background; input and screenshots target the assigned tab without activating it. Explicit agent activation and window resizing are blocked while enabled. Opening the dashboard or selecting a tab yourself still works.

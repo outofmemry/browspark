@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Browspark",
-  "version": "0.6.6",
+  "version": "0.7.0",
   "description": "Share existing Firefox or Zen tabs with your local MCP companion, alongside other connected browsers.",
   "permissions": ["tabs", "storage", "alarms", "downloads"],
-  "optional_permissions": ["userScripts"],
+  "optional_permissions": ["userScripts", "management"],
   "host_permissions": ["<all_urls>"],
   "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'none'; connect-src ws://127.0.0.1:*" },
   "background": { "scripts": ["dist/background.js"] },

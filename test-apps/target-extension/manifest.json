@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Browspark Target Fixture",
+  "version": "1.0.0",
+  "description": "Dummy extension used by the browser_extensions e2e test. Answers messages from other extensions.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://example.com/*"
+  ],
+  "background": {
+    "service_worker": "sw.js"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://127.0.0.1/*"
+      ],
+      "js": [
+        "inject.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "options.html"
+      ],
+      "matches": [
+        "http://127.0.0.1/*"
+      ]
+    }
+  ]
+}

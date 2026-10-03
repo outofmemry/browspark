@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Browspark",
-  "version": "0.6.6",
+  "version": "0.7.0",
   "description": "Share tabs from this Chromium browser profile with a local MCP companion, alongside other connected browsers.",
   "permissions": ["debugger", "tabs", "storage", "alarms", "downloads"],
+  "optional_permissions": ["management"],
   "background": { "service_worker": "dist/background.js" },
   "action": { "default_title": "Open Browspark", "default_icon": "assets/logo.png" },
   "icons": { "16": "assets/logo.png", "32": "assets/logo.png", "48": "assets/logo.png", "128": "assets/logo.png" }

@@ -1,5 +1,5 @@
 // Messages between the dashboard page and the service worker.
-import type { ConnectionGraph, TabInfo, ToolInfo } from '../../../shared/protocol.ts';
+import type { ConnectionGraph, ExtensionInfo, TabInfo, ToolInfo } from '../../../shared/protocol.ts';
 
 export interface OpLog { id: number; at: number; ms: number; tabId: number; tabLabel: string; method: string; ok: boolean; error?: string; client?: string }
 export interface WindowInfo { id: number; incognito: boolean }
@@ -28,6 +28,14 @@ export interface State {
   /** Cyan halo, cursor and Stop pill on tabs while the agent works. */
   overlay: boolean;
   backgroundMode: boolean;
+  /** The optional `management` permission is granted (requested from the dashboard). */
+  managementGranted: boolean;
+  /** User consent for agents to use browser_extensions (inventory, enable/disable, messaging, options pages). */
+  extensionsAccess: boolean;
+  /** User consent to automate options pages the agent opens (Chromium only). */
+  extensionPages: boolean;
+  /** Installed extensions, present only while `management` is granted. */
+  extensions?: ExtensionInfo[];
   /** Manual graph label for browsers that spoof client hints; blank means auto-detect. */
   customBrowser: string;
   port: number;
@@ -51,6 +59,9 @@ export type PopupMsg =
   | { type: 'setDevMode'; mode: 'auto' | 'always' | 'never' }
   | { type: 'setBackgroundMode'; on: boolean }
   | { type: 'setOverlay'; on: boolean }
+  | { type: 'setExtensionsAccess'; on: boolean }
+  | { type: 'setExtensionPages'; on: boolean }
+  | { type: 'setExtensionEnabled'; id: string; enabled: boolean }
   | { type: 'setToolsEnabled'; names: string[]; enabled: boolean }
   | { type: 'connect' }
   | { type: 'stop' }

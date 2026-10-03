@@ -169,6 +169,35 @@ function firefoxAccess(s: State) {
       firefoxPermissionError ? h('p', { role: 'alert', class: 'err-text' }, firefoxPermissionError) : null));
 }
 
+let extensionError = '';
+function extensionsCard(s: State) {
+  const grant = async () => {
+    try {
+      const granted = await api.permissions.request({ permissions: ['management'] });
+      extensionError = granted ? '' : 'Permission was not granted. Browspark cannot see other extensions.';
+    } catch (error) { extensionError = (error as Error).message; }
+    paint(await ask({ type: 'getState' })); repaint();
+  };
+  const failed = (e: unknown) => { extensionError = (e as Error).message || String(e); repaint(); };
+  const rows = (s.extensions ?? []).filter((x) => x.type !== 'theme').sort((a, b) => Number(b.enabled) - Number(a.enabled) || a.name.localeCompare(b.name));
+  return h('div', { class: 'card', style: 'margin-bottom:16px', id: 'extensions-card' },
+    h('div', { class: 'card-h' }, h('h2', {}, 'Other extensions')),
+    h('div', { class: 'setting' }, h('div', {}, h('h3', {}, 'Let agents work with other extensions'),
+      h('p', {}, 'Allows the browser_extensions tool to list your extensions and their permissions, enable or disable them, ask the browser to uninstall one (you confirm in the browser), message extensions that opt in, and open their options pages. Browspark cannot read other extensions’ data and never manages itself.'),
+      !s.managementGranted ? h('p', { class: 'muted' }, 'Requires the browser’s management permission, which you grant separately.') : null,
+      extensionError ? h('p', { role: 'alert', class: 'err-text' }, extensionError) : null),
+      h('div', { class: 'ctl' }, s.managementGranted
+        ? h('label', { class: 'switch' }, h('input', { id: 'extensions-access', type: 'checkbox', checked: s.extensionsAccess, 'aria-label': 'Let agents work with other extensions', onchange: (e: Event) => { const on = checked(e); ask({ type: 'setExtensionsAccess', on }).then((n) => { extensionError = ''; paint(n); }).catch(failed); } }))
+        : h('button', { id: 'grant-management', class: 'btn primary', onclick: grant }, 'Grant permission'))),
+    s.browserEngine === 'firefox' ? null : h('div', { class: 'setting' }, h('div', {}, h('h3', {}, 'Share options pages the agent opens'),
+      h('p', {}, 'When the agent opens an extension’s options page, share that tab so it can be automated. Only the options tab it opened is shared, only while it stays on that extension’s own pages, and the browser may still refuse to attach. Firefox does not support this.')),
+      h('div', { class: 'ctl' }, h('label', { class: 'switch' }, h('input', { id: 'extension-pages', type: 'checkbox', checked: s.extensionPages, disabled: !s.extensionsAccess, 'aria-label': 'Share options pages the agent opens', onchange: (e: Event) => { const on = checked(e); ask({ type: 'setExtensionPages', on }).then(paint).catch(failed); } })))),
+    s.managementGranted ? h('div', { class: 'setting' }, h('div', { style: 'width:100%' }, h('h3', {}, `Installed extensions (${rows.length})`),
+      rows.length ? h('div', { class: 'ext-list' }, ...rows.map((x) => h('div', { class: 'tab', 'data-key': x.id },
+        h('div', {}, h('div', { class: 't' }, `${x.name} `, h('span', { class: 'muted' }, `v${x.version}`)), h('div', { class: 'u' }, x.id)),
+        x.self ? h('span', { class: 'muted' }, 'This extension') : h('label', { class: 'switch', title: x.mayDisable === false ? 'Managed by policy' : x.enabled ? 'Disable' : 'Enable' }, h('input', { type: 'checkbox', checked: x.enabled, disabled: x.mayDisable === false, 'aria-label': `${x.enabled ? 'Disable' : 'Enable'} ${x.name}`, onchange: (e: Event) => { const enabled = checked(e); ask({ type: 'setExtensionEnabled', id: x.id, enabled }).then((n) => { extensionError = ''; paint(n); }).catch(failed); } }))))) : h('p', { class: 'muted' }, 'No other extensions installed.'))) : null);
+}
+
 function connectForm(s: State) {
   const port = h('input', { id: 'port', type: 'number', min: 1, max: 65535, 'aria-label': 'Bridge port', value: String(s.port), class: 'mono' }) as HTMLInputElement;
   const submit = () => { editing = false; return changeConnection({ type: 'setConfig', port: Number(inputValue('port')) || 9223 }); };
@@ -507,6 +536,7 @@ function viewSettings(s: State) {
       h('div', { class: 'setting' }, h('div', {}, h('h3', {}, 'When the agent may launch a browser'), h('p', {}, 'Separate Chrome, Brave, Firefox and Zen sessions have their own saved profiles. Only when needed allows a launch when a tool requires it or you explicitly request it.'), h('p', {}, 'With multiple connected profiles, Never takes priority, followed by Only when needed, then Always. Firefox and Zen have ', h('a', { href: 'https://docs.browspark.krishm.dev/reference/firefox', target: '_blank', rel: 'noreferrer' }, 'documented tool exceptions'), '.')),
         h('div', { class: 'ctl' }, h('div', { class: 'seg', role: 'group', 'aria-label': 'Developer browser mode' }, ...([['auto', 'Only when needed'], ['always', 'Always'], ['never', 'Never']] as const).map(([v, label]) =>
           h('button', { class: s.devMode === v ? 'on' : '', 'aria-pressed': String(s.devMode === v), onclick: () => ask({ type: 'setDevMode', mode: v }).then(paint) }, label)))))),
+    extensionsCard(s),
     h('div', { class: 'card', style: 'margin-bottom:16px' },
       h('div', { class: 'card-h' }, h('h2', {}, 'Browser behavior')),
       h('div', { class: 'setting' }, h('div', {}, h('h3', {}, 'Work in background'), h('p', {}, 'On by default for this profile. Commands target the assigned tab without switching your active tab or focusing its window. If an operation needs foreground interaction, select the agent tab yourself or temporarily turn this off.')),
@@ -536,7 +566,7 @@ function tick() {
 /** Older workers (before an extension reload) omit newer fields; never let that blank the page. */
 function normalize(s: Partial<State> | undefined): State {
   const x = (s ?? {}) as Partial<State>;
-  const defaults: State = { connected: false, connecting: false, stopped: false, shareAll: false, activityLog: false, overlay: true, backgroundMode: true, graphEnabled: true, port: 9223, customBrowser: '', extensionVersion: '?', windows: [], tabs: [], recent: [], totals: { ops: 0, errors: 0 }, toolCatalog: [], disabledTools: [], devMode: 'auto' };
+  const defaults: State = { connected: false, connecting: false, stopped: false, shareAll: false, activityLog: false, overlay: true, backgroundMode: true, graphEnabled: true, managementGranted: false, extensionsAccess: false, extensionPages: false, port: 9223, customBrowser: '', extensionVersion: '?', windows: [], tabs: [], recent: [], totals: { ops: 0, errors: 0 }, toolCatalog: [], disabledTools: [], devMode: 'auto' };
   const out: State = { ...defaults, ...x } as State;
   for (const k of ['windows', 'tabs', 'recent', 'toolCatalog', 'disabledTools'] as const) if (!Array.isArray(out[k])) (out as any)[k] = [];
   if (!out.totals) out.totals = { ops: 0, errors: 0 };
