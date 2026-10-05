@@ -1,8 +1,19 @@
 // Messages between the dashboard page and the service worker.
-import type { ConnectionGraph, ExtensionInfo, TabInfo, ToolInfo } from '../../../shared/protocol.ts';
+import type { ConnectionGraph, ExtensionInfo, TabInfo, ToolInfo, UpdateStatus } from '../../../shared/protocol.ts';
 
 export interface OpLog { id: number; at: number; ms: number; tabId: number; tabLabel: string; method: string; ok: boolean; error?: string; client?: string }
 export interface WindowInfo { id: number; incognito: boolean }
+export interface UpdateState {
+  /** The companion's last answer. */
+  status?: UpdateStatus;
+  checking: boolean;
+  /** Why the companion could not be asked (not running, or too old to install updates). */
+  unreachable?: string;
+  install?: { stage: 'download' | 'verify' | 'install' | 'reload'; version: string; received?: number; total?: number };
+  installError?: string;
+  /** Release the user chose to postpone; its prompt stays closed until the next release. */
+  dismissed?: string;
+}
 export interface State {
   graphEnabled: boolean;
   graph?: ConnectionGraph;
@@ -46,6 +57,11 @@ export interface State {
   tabs: TabInfo[];
   recent: OpLog[];
   totals: { ops: number; errors: number };
+  /** Ask the companion for new releases (on connect and hourly). */
+  updateCheck: boolean;
+  update: UpdateState;
+  /** Set after an update reloaded the extension, until the dashboard acknowledges it. */
+  justUpdated?: { from: string; to: string };
 }
 export type PopupMsg =
   | { type: 'getState' }
@@ -66,4 +82,9 @@ export type PopupMsg =
   | { type: 'connect' }
   | { type: 'stop' }
   | { type: 'clearLog' }
-  | { type: 'focusTab'; tabId: number };
+  | { type: 'focusTab'; tabId: number }
+  | { type: 'checkUpdate' }
+  | { type: 'installUpdate'; path?: string }
+  | { type: 'dismissUpdate' }
+  | { type: 'setUpdateCheck'; on: boolean }
+  | { type: 'ackUpdated' };

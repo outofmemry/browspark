@@ -1,8 +1,8 @@
 import {
-  DEFAULT_PORT, PROTOCOL_VERSION, STOP_BINDING, isReq, isNewTab, unsupportedReason, isConnectionGraph, isExtensionPage,
-  type CdpParams, type ConnectionGraph, type Evt, type HelloParams, type Msg, type Req, type Res, type TabInfo, type ToolInfo,
+  DEFAULT_PORT, PROTOCOL_VERSION, STOP_BINDING, UPDATE_PATH, isReq, isNewTab, unsupportedReason, isConnectionGraph, isExtensionPage,
+  type CdpParams, type ConnectionGraph, type Evt, type HelloParams, type Msg, type Req, type Res, type TabInfo, type ToolInfo, type UpdateEvent, type UpdateRequest,
 } from '../../../shared/protocol.ts';
-import type { OpLog, PopupMsg, State } from './state.ts';
+import type { OpLog, PopupMsg, State, UpdateState } from './state.ts';
 import { api, isFirefox, FIREFOX_PERMISSIONS } from './browser.ts';
 import { createFirefoxDebugger } from './firefox-debugger.ts';
 import { isKnownLabel, resolveBrowserName } from './brands.ts';
@@ -59,11 +59,15 @@ let instanceId: string;
 let browserSessionId: string;
 // Manual graph label for browsers that spoof Chrome/Chromium hints (e.g. Helium, Dia); blank means auto-detect.
 let customBrowser = '';
+let updateCheck = true; // ask the companion for new releases
+const update: UpdateState = { checking: false };
+let notifiedUpdate: string | undefined; // release already announced with a notification
+let justUpdated: { from: string; to: string } | undefined;
 
 const cfg = async () => {
-  const s = await api.storage.local.get(['extensionsAccess', 'extensionPages', 'port', 'shareAll', 'stopped', 'activityLog', 'toolCatalog', 'disabledTools', 'devMode', 'overlay', 'backgroundMode', 'graphEnabled', 'idleDetachMs', 'customBrowser']);
+  const s = await api.storage.local.get(['extensionsAccess', 'extensionPages', 'port', 'shareAll', 'stopped', 'activityLog', 'toolCatalog', 'disabledTools', 'devMode', 'overlay', 'backgroundMode', 'graphEnabled', 'idleDetachMs', 'customBrowser', 'updateCheck', 'dismissedUpdate', 'notifiedUpdate', 'justUpdated']);
   const ss = await api.storage.session.get(['shared', 'excluded']); // per-tab grants must not outlive the browser session
-  return { extensionsAccess: s.extensionsAccess === true, extensionPages: s.extensionPages === true, port: (s.port as number) || DEFAULT_PORT, shared: (ss.shared as number[]) || [], excluded: (ss.excluded as number[]) || [], shareAll: !!s.shareAll, stopped: !!s.stopped, activityLog: !!s.activityLog, toolCatalog: (s.toolCatalog as ToolInfo[]) || [], disabledTools: (s.disabledTools as string[]) || [], devMode: ((s.devMode as string) || 'auto') as 'auto' | 'always' | 'never', overlay: s.overlay !== false, backgroundMode: s.backgroundMode !== false, graphEnabled: s.graphEnabled !== false, idleDetachMs: (s.idleDetachMs as number) || IDLE_DETACH_MS_DEFAULT, customBrowser: typeof s.customBrowser === 'string' && isKnownLabel(s.customBrowser.trim()) ? s.customBrowser.trim().slice(0, 64) : '' };
+  return { extensionsAccess: s.extensionsAccess === true, extensionPages: s.extensionPages === true, port: (s.port as number) || DEFAULT_PORT, shared: (ss.shared as number[]) || [], excluded: (ss.excluded as number[]) || [], shareAll: !!s.shareAll, stopped: !!s.stopped, activityLog: !!s.activityLog, toolCatalog: (s.toolCatalog as ToolInfo[]) || [], disabledTools: (s.disabledTools as string[]) || [], devMode: ((s.devMode as string) || 'auto') as 'auto' | 'always' | 'never', overlay: s.overlay !== false, backgroundMode: s.backgroundMode !== false, graphEnabled: s.graphEnabled !== false, idleDetachMs: (s.idleDetachMs as number) || IDLE_DETACH_MS_DEFAULT, customBrowser: typeof s.customBrowser === 'string' && isKnownLabel(s.customBrowser.trim()) ? s.customBrowser.trim().slice(0, 64) : '', updateCheck: s.updateCheck !== false, dismissedUpdate: typeof s.dismissedUpdate === 'string' ? s.dismissedUpdate : undefined, notifiedUpdate: typeof s.notifiedUpdate === 'string' ? s.notifiedUpdate : undefined, justUpdated: s.justUpdated as { from: string; to: string } | undefined };
 };
 const send = (m: Msg) => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m)); };
 const evt = (event: Evt['event'], params?: unknown) => send({ event, params });
@@ -343,14 +347,14 @@ async function connect(force = false) {
     if (!msg || typeof msg !== 'object') return;
     if (isReq(msg)) {
       // A response from the companion confirms readiness, not merely an open socket.
-      if (connecting) { connecting = false; connectedAt = Date.now(); lastError = undefined; backoff = 1000; clearTimeout(connectionTimer); }
+      if (connecting) { connecting = false; connectedAt = Date.now(); lastError = undefined; backoff = 1000; clearTimeout(connectionTimer); void checkForUpdates(); }
       const response = await handle(msg);
       if (ws === sock && sock.readyState === WebSocket.OPEN) sock.send(JSON.stringify(response));
     }
   };
   sock.onclose = (e) => {
     if (ws !== sock) return;
-    if (e.code === 4002) { stopped = true; disconnected(e.reason || 'Protocol version mismatch; update the extension'); return; }
+    if (e.code === 4002) { stopped = true; disconnected(e.reason || 'Protocol version mismatch; update the extension'); void checkForUpdates(true); return; }
     disconnected(lastError ?? (e.code === 1000 ? 'Companion disconnected. Retrying automatically.' : `Disconnected (${e.code}). Retrying automatically.`));
   };
   sock.onerror = () => { if (ws === sock) lastError = 'Companion not reachable; is the MCP server running?'; };
@@ -368,6 +372,108 @@ async function stop(persist = true) {
   if (persist) { shared.clear(); shareAll = false; await api.storage.session.set({ shared: [] }); await api.storage.local.set({ shareAll: false, stopped: true }); }
 }
 
+// ---------- updates ----------
+// The companion owns the update: it checks GitHub, finds the folder this extension was loaded from and swaps the release
+// zip into it. A separate /update socket keeps this working when the bridge refuses an outdated extension (4002).
+const engine = isFirefox ? 'firefox' : 'chromium';
+function askCompanion(request: UpdateRequest, onEvent: (e: UpdateEvent) => boolean, idleMs: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    cfg().then(({ port }) => {
+      let sock: WebSocket;
+      try { sock = new WebSocket(`ws://127.0.0.1:${port}${UPDATE_PATH}`); } catch (e) { reject(e); return; }
+      let done = false, timer: ReturnType<typeof setTimeout> | undefined;
+      const finish = (error?: Error) => { if (done) return; done = true; clearTimeout(timer); try { sock.close(1000); } catch {} if (error) reject(error); else resolve(); };
+      const arm = () => { clearTimeout(timer); timer = setTimeout(() => finish(new Error('The companion stopped answering.')), idleMs); };
+      arm();
+      sock.onopen = () => sock.send(JSON.stringify(request));
+      sock.onmessage = (m) => { arm(); let e: UpdateEvent; try { e = JSON.parse(m.data as string); } catch { return; } if (onEvent(e)) finish(); };
+      sock.onerror = () => finish(new Error('Companion not reachable; is the MCP server running?'));
+      // A companion from before updates existed treats /update as the bridge and closes with 4001 (hello required).
+      sock.onclose = (e) => finish(new Error(e.code === 4001 ? 'This companion cannot install updates yet. Restart your MCP client to load the latest companion, or download the release.' : 'The companion closed the update connection.'));
+    }, reject);
+  });
+}
+
+async function checkForUpdates(force = false) {
+  await ready;
+  if ((!updateCheck && !force) || update.checking || update.install) return;
+  update.checking = true;
+  try {
+    await askCompanion({ type: 'check', engine, id: api.runtime.id, version: api.runtime.getManifest().version, ...(force && { force }) }, (e) => {
+      if (e.type !== 'status') return false;
+      update.status = e; update.unreachable = undefined; return true;
+    }, 20_000);
+  } catch (e) { update.unreachable = (e as Error).message; }
+  finally { update.checking = false; await announceUpdate(); }
+}
+
+/** Toolbar badge while a release waits, and one desktop notification per release. */
+async function announceUpdate() {
+  const s = update.status;
+  const waiting = updateCheck && !!s?.available && !!s.latest && update.dismissed !== s.latest;
+  try {
+    await api.action.setBadgeText({ text: waiting ? 'NEW' : '' });
+    await api.action.setTitle({ title: waiting ? `Browspark ${s!.latest} is available. Open to update.` : 'Open Browspark' });
+    if (waiting) { await api.action.setBadgeBackgroundColor({ color: '#3ddc97' }); await (api.action as any).setBadgeTextColor?.({ color: '#03150c' }); }
+  } catch {}
+  if (waiting && notifiedUpdate !== s!.latest && api.notifications) {
+    notifiedUpdate = s!.latest;
+    await api.storage.local.set({ notifiedUpdate });
+    api.notifications.create('browspark-update', { type: 'basic', iconUrl: api.runtime.getURL('assets/logo.png'), title: `Browspark ${s!.latest} is available`, message: s!.installable ? 'Click to update. Your shared tabs stay shared.' : 'Click to see how to update.' });
+  }
+}
+api.notifications?.onClicked.addListener((id) => { if (id === 'browspark-update') { void api.notifications.clear(id); void openApp(); } });
+
+async function installUpdate(path?: string) {
+  await ready;
+  const latest = update.status?.latest;
+  if (update.install || !latest) return;
+  update.install = { stage: 'download', version: latest }; update.installError = undefined;
+  let done: { version: string } | undefined, failure: string | undefined;
+  try {
+    const from = api.runtime.getManifest().version;
+    await askCompanion({ type: 'install', engine, id: api.runtime.id, version: from, ...(path && { path }) }, (e) => {
+      if (e.type === 'progress') { update.install = { stage: e.stage, version: latest, received: e.received, total: e.total }; return false; }
+      if (e.type === 'done') { done = e; return true; }
+      if (e.type === 'error') { failure = e.message; return true; }
+      return false;
+    }, 60_000);
+    if (!done) throw new Error(failure ?? 'The update did not finish.');
+    // storage.session is cleared by the reload; carry this session's tab grants and id over, checked against the tab's page on restart.
+    const grants = async (ids: Set<number>) => (await Promise.all([...ids].map((id) => api.tabs.get(id).then((t) => ({ id, url: t.url ?? '' }), () => undefined)))).filter(Boolean);
+    await api.storage.local.set({ pendingUpdate: { from, to: done.version, at: Date.now(), shared: await grants(shared), excluded: await grants(excluded), browserSessionId } });
+    update.install = { stage: 'reload', version: done.version };
+    await stop(false).catch(() => {});
+    setTimeout(() => api.runtime.reload(), 700);
+  } catch (e) {
+    update.install = undefined;
+    update.installError = (e as Error).message || String(e);
+  }
+}
+
+/** First start after an update: restore grants for tabs still on the same page, then refresh or reopen the dashboard. */
+async function carriedOver(pending: unknown) {
+  if (!pending || typeof pending !== 'object') return undefined;
+  await api.storage.local.remove('pendingUpdate');
+  const p = pending as { from?: unknown; at?: unknown; shared?: unknown; excluded?: unknown; browserSessionId?: unknown };
+  const fresh = typeof p.at === 'number' && Date.now() - p.at < 120_000;
+  const still = async (list: unknown) => {
+    const ids: number[] = [];
+    for (const t of Array.isArray(list) ? list : []) { try { if (Number.isSafeInteger(t?.id) && (await api.tabs.get(t.id)).url === t.url) ids.push(t.id); } catch {} }
+    return ids;
+  };
+  const from = typeof p.from === 'string' ? p.from.slice(0, 64) : undefined;
+  if (from) await api.storage.local.set({ justUpdated: { from, to: api.runtime.getManifest().version } });
+  const open = (await api.tabs.query({})).filter((t) => t.id !== undefined && t.url?.startsWith(APP_URL));
+  if (open.length) for (const t of open) await api.tabs.reload(t.id!).catch(() => {});
+  else await api.tabs.create({ url: `${APP_URL}#/overview` }).catch(() => {});
+  return {
+    justUpdated: from ? { from, to: api.runtime.getManifest().version } : undefined,
+    shared: fresh ? await still(p.shared) : [], excluded: fresh ? await still(p.excluded) : [],
+    browserSessionId: fresh && typeof p.browserSessionId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(p.browserSessionId) ? p.browserSessionId : undefined,
+  };
+}
+
 async function state(): Promise<State> {
   const { port } = await cfg();
   const managementGranted = await api.permissions.contains(MANAGEMENT_PERMISSION).catch(() => false);
@@ -378,6 +484,7 @@ async function state(): Promise<State> {
     connected: ws?.readyState === WebSocket.OPEN && connectedAt !== undefined, connecting: connecting && !lastError, stopped, shareAll, activityLog, toolCatalog, disabledTools: [...disabledTools], companionVersion, devMode, overlay, backgroundMode, port, lastError, connectedAt,
     customBrowser, browserEngine: isFirefox ? 'firefox' : 'chromium', firefoxHostAccess: !isFirefox || await api.permissions.contains({ origins: FIREFOX_PERMISSIONS.origins }), automationReady: !isFirefox || await api.permissions.contains(FIREFOX_PERMISSIONS),
     extensionVersion: api.runtime.getManifest().version, windows, tabs: await listTabs(), recent, totals,
+    updateCheck, update: { ...update }, justUpdated,
   };
 }
 
@@ -452,6 +559,18 @@ api.runtime.onMessage.addListener((msg: PopupMsg, sender, reply) => {
         if (!shareAll) for (const id of [...attached]) if (!shared.has(id)) await detach(id);
         await api.storage.local.set({ shareAll });
         pushTabs(); break;
+      case 'checkUpdate': await checkForUpdates(true); break;
+      case 'installUpdate':
+        if (msg.path !== undefined && (typeof msg.path !== 'string' || msg.path.length > 4096)) throw new Error('Invalid folder path');
+        void installUpdate(msg.path?.trim() || undefined); break;
+      case 'dismissUpdate':
+        update.dismissed = update.status?.latest; await api.storage.local.set({ dismissedUpdate: update.dismissed }); await announceUpdate(); break;
+      case 'setUpdateCheck':
+        if (typeof msg.on !== 'boolean') throw new Error('on must be a boolean');
+        updateCheck = msg.on; await api.storage.local.set({ updateCheck });
+        if (updateCheck) await checkForUpdates(true); else await announceUpdate();
+        break;
+      case 'ackUpdated': justUpdated = undefined; await api.storage.local.remove('justUpdated'); break;
       case 'focusTab': {
         const t = await api.tabs.update(msg.tabId, { active: true });
         if (t?.windowId !== undefined) await api.windows.update(t.windowId, { focused: true });
@@ -514,14 +633,25 @@ api.tabs.onUpdated.addListener((_id, info) => { if (info.url || info.title || in
 // Keepalive: WebSocket traffic keeps the MV3 worker alive; the alarm retries when disconnected.
 setInterval(() => evt('ping'), 20_000);
 api.alarms.create('reconnect', { periodInMinutes: 0.5 });
-api.alarms.onAlarm.addListener(() => { if (!ws && !stopped) connect(); });
+api.alarms.create('update-check', { periodInMinutes: 60 });
+api.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'update-check') void checkForUpdates();
+  else if (!ws && !stopped) connect();
+});
 
 const ready = cfg().then(async (c) => {
-  const local = await api.storage.local.get('instanceId'), session = await api.storage.session.get('browserSessionId');
+  const local = await api.storage.local.get(['instanceId', 'pendingUpdate']), session = await api.storage.session.get('browserSessionId');
+  const carried = await carriedOver(local.pendingUpdate).catch(() => undefined);
   instanceId = typeof local.instanceId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(local.instanceId) ? local.instanceId : crypto.randomUUID();
-  browserSessionId = typeof session.browserSessionId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(session.browserSessionId) ? session.browserSessionId : crypto.randomUUID();
+  browserSessionId = carried?.browserSessionId ?? (typeof session.browserSessionId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(session.browserSessionId) ? session.browserSessionId : crypto.randomUUID());
   await api.storage.local.set({ instanceId }); await api.storage.session.set({ browserSessionId });
-  for (const id of c.shared) shared.add(id); for (const id of c.excluded) excluded.add(id); shareAll = c.shareAll; activityLog = c.activityLog; toolCatalog = c.toolCatalog; disabledTools = new Set(c.disabledTools); devMode = c.devMode; stopped = c.stopped; overlay = c.overlay; backgroundMode = c.backgroundMode; graphEnabled = c.graphEnabled; extensionsAccess = c.extensionsAccess; extensionPages = c.extensionPages; idleDetachMs = c.idleDetachMs; customBrowser = c.customBrowser; if (!stopped) connect();
+  for (const id of [...c.shared, ...carried?.shared ?? []]) shared.add(id); for (const id of [...c.excluded, ...carried?.excluded ?? []]) excluded.add(id);
+  if (carried) await api.storage.session.set({ shared: [...shared], excluded: [...excluded] });
+  shareAll = c.shareAll; activityLog = c.activityLog; toolCatalog = c.toolCatalog; disabledTools = new Set(c.disabledTools); devMode = c.devMode; stopped = c.stopped; overlay = c.overlay; backgroundMode = c.backgroundMode; graphEnabled = c.graphEnabled; extensionsAccess = c.extensionsAccess; extensionPages = c.extensionPages; idleDetachMs = c.idleDetachMs; customBrowser = c.customBrowser;
+  updateCheck = c.updateCheck; update.dismissed = c.dismissedUpdate; notifiedUpdate = c.notifiedUpdate; justUpdated = carried?.justUpdated ?? c.justUpdated;
+  if (!stopped) connect();
+  // Without a live connection (companion down, paused, or refused as outdated) still ask once the companion may be up.
+  setTimeout(() => { if (!connectedAt) void checkForUpdates(); }, 5000);
 }).catch((e) => {
   // A storage failure must not brick the worker: keep the module defaults, surface
   // the error in the dashboard, and let a later connect re-apply the full settings.
