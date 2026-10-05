@@ -6,7 +6,7 @@ import { currentClient } from './context.ts';
 import { allocateDevTabId } from './cdp.ts';
 import {
   isEvt, isRes, isExtensionId, type CdpEventParams, type DetachedParams, type HelloParams, type Msg, type Req,
-  type ReqMethod, type TabInfo, type ToolPolicy, PROTOCOL_VERSION,
+  type ReqMethod, type TabInfo, type ToolPolicy, PROTOCOL_VERSION, UPDATE_PATH,
 } from '../../shared/protocol.ts';
 
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -28,6 +28,8 @@ export class Bridge extends EventEmitter {
   private http?: Server;
   /** Set by installLiveView: handles a browser viewer connection for a tab. */
   viewerHandler?: (ws: WebSocket, tabId: number) => void;
+  /** Set by the entry point: extension update checks and installs at /update, independent of the bridge protocol version. */
+  updateHandler?: (ws: WebSocket, origin?: string) => void;
   /** Set by the entry point: MCP over Streamable HTTP at /mcp for URL-based clients (web agents, hosted assistants). */
   mcpHandler?: (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => Promise<void>;
   private active = new Map<string, Connection>();
@@ -75,6 +77,10 @@ export class Bridge extends EventEmitter {
           const tabId = Number(u.searchParams.get('tab'));
           if (!tabId || !this.viewerHandler) { socket.destroy(); return; }
           this.wss!.handleUpgrade(req, socket, head, (ws) => this.viewerHandler!(ws, tabId));
+          return;
+        }
+        if (u.pathname === UPDATE_PATH && this.updateHandler) {
+          this.wss!.handleUpgrade(req, socket, head, (ws) => this.updateHandler!(ws, req.headers.origin));
           return;
         }
         this.wss!.handleUpgrade(req, socket, head, (ws) => this.accept(ws));
