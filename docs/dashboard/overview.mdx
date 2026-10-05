@@ -3,7 +3,7 @@ title: "Overview page"
 description: "Connection state, setup snippets for every client, and today's numbers at a glance."
 ---
 
-Click the extension icon to open the dashboard in a full browser tab. The sidebar has Overview, Graph, Tabs, Tools, Activity and Settings. Graph is enabled by default and can be hidden in Settings. The sidebar also shows the connection state, a theme switch (system, light, dark) and the extension and companion versions.
+Click the extension icon to open the dashboard in a full browser tab. The sidebar has Overview, Tabs, Graph, Tools, Activity and Settings. Graph is enabled by default and can be hidden in Settings. Above the navigation, a profile card shows this browser's name and logo, how many tabs it shares and its connection state. The theme switch (system, light, dark) sits next to the logo, and the extension version is at the bottom. When a new release is out, an **Update available** card appears under the profile card and the dashboard opens the update dialog; see [Updating](/get-started/installation#updating).
 
 Each browser profile with the extension has its own dashboard, showing that profile's tabs, connection and settings. Open [Graph](/dashboard/graph) to arrange connected agents, browser profiles and developer sessions on a dotted canvas with logos and animated connection lines. Ask the agent for `browser_status` to get their browser and tab IDs; separate developer sessions have no extension dashboard.
 
@@ -13,15 +13,17 @@ In Firefox or Zen, the dashboard shows **Allow website access** if the all-websi
 
 ## Connection card
 
-Shows whether this profile's extension is connected to the companion (`127.0.0.1:<port>`), reconnecting, or stopped, how long the session has been live, and the companion version. **Stop** and **Resume** affect this profile, as on the Settings page.
+Shows whether this profile's extension is connected to the companion (`127.0.0.1:<port>`), reconnecting, or stopped. While connected, a strip underneath lists the agents and browsers currently on the companion (with the [Graph](/dashboard/graph) enabled), how long the session has been live, and the companion version. **Stop** and **Resume** affect this profile, as on the Settings page.
 
 ## Setup
 
-A client picker (Claude, Codex, OpenCode, Cursor, Antigravity, Muse Code) with the exact command or JSON to paste, a copy button, the file it belongs in, what to do next, and a link to that client's MCP documentation. The snippets already include `--port` when you changed the bridge port. Full text of each is in [Connect an agent](/connect/agents).
+A three-step checklist with a progress bar: **Run the companion**, **Connect this extension** and **Share tabs**. Completed steps collapse to a single line, so a connected profile keeps the Overview short.
+
+The first step holds a client picker (Claude, Codex, OpenCode, Cursor, Antigravity, Muse Code) with the exact command or JSON to paste, a copy button, the file it belongs in, what to do next, and a link to that client's MCP documentation. It is open until the companion connects; afterwards choose **Add a client** to show it again. The snippets already include `--port` when you changed the bridge port. Full text of each is in [Connect an agent](/connect/agents).
 
 ## Numbers
 
-Shared tabs and attached tabs are always shown. **Operations** and **Errors** count commands since the extension started and appear only while the [activity log](/dashboard/activity) is on; with it off nothing is counted.
+**Shared tabs** and **Enabled tools** are always shown, each with a meter against the available total. **Operations** and **Errors** count commands since the extension started and appear only while the [activity log](/dashboard/activity) is on; with it off nothing is counted.
 
 ## Stale worker banner
 

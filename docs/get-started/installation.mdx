@@ -93,7 +93,7 @@ Use the Chromium package for Chrome and Brave, or the Firefox package for Firefo
   </Tab>
 </Tabs>
 
-The Chromium extension asks for five permissions: `debugger` (drive tabs), `tabs` (list and open them), `storage` (settings and the shared list), `alarms` (idle detach timer) and `downloads` (report downloads). It has no host permissions. The Firefox extension uses `tabs`, `storage`, `alarms`, `downloads`, access to all websites (`<all_urls>`) for Firefox's native screenshot API, and an optional `userScripts` permission that you enable in the dashboard. Firefox automation remains limited to HTTP/HTTPS tabs. Both extensions enforce sharing before page commands.
+The Chromium extension asks for six permissions: `debugger` (drive tabs), `tabs` (list and open them), `storage` (settings and the shared list), `alarms` (idle detach timer and update checks), `downloads` (report downloads) and `notifications` (one notice per new release). It has no host permissions. The Firefox extension uses `tabs`, `storage`, `alarms`, `downloads`, `notifications`, access to all websites (`<all_urls>`) for Firefox's native screenshot API, and an optional `userScripts` permission that you enable in the dashboard. Firefox automation remains limited to HTTP/HTTPS tabs. Both extensions enforce sharing before page commands.
 
 Load the matching extension in each browser profile you want to connect. Chrome, Brave, Firefox and Zen profiles can stay connected together. Each dashboard controls sharing for its own profile; connecting another browser does not replace an existing connection. `browser_status` and `browser_tabs` show the `browserId` to select when opening tabs. See [using multiple browsers](/reference/multiple-browsers).
 
@@ -106,7 +106,17 @@ There is no pairing token. The companion listens on localhost only and refuses c
 
 ## Updating
 
-The companion updates itself: `bunx browspark-mcp@latest` resolves the newest version each time the client starts it. For the extension:
+The companion updates itself: `bunx browspark-mcp@latest` resolves the newest version each time the client starts it.
+
+The extension updates from its dashboard. The companion checks Browspark's GitHub releases (at most every 6 hours) and, when a newer release is out, the extension shows a **NEW** badge on its toolbar icon, one desktop notification, and an **Update available** dialog in the dashboard. Choose **Update now** and the companion downloads the archive for your browser (`browspark-chrome-extension.zip` or `browspark-firefox-extension.zip`), checks that it is that browser's Browspark build of the announced version, and replaces the files in the folder the extension was loaded from. The extension then reloads itself and the dashboard comes back on the new version. Tabs you shared stay shared, and agents keep their tab IDs.
+
+The folder keeps its name and location, whatever it is: `~/browspark-extension` from the setup script, an unzipped `browspark-chrome-extension` or `browspark-firefox-extension` folder in your home, Downloads, Desktop or Documents folder, or a folder you used before. Chromium names an unpacked extension after its folder, so the companion always updates the exact folder the browser loaded. If it cannot find the folder, the dialog asks for it; copy it from your browser's extensions page (**Loaded from**) or from `about:debugging` in Firefox. Choose **Later** to postpone a release; **Settings → Updates** shows the version, the install location and a **Check now** button, and can turn checks off.
+
+<Note>
+Chromium reloads an unpacked extension only while **Developer mode** is on in `chrome://extensions`; it is on whenever you load one. Firefox keeps temporary add-ons only until it restarts, and a newer extension can need a newer companion: restart your MCP client so `bunx` starts the latest one.
+</Note>
+
+Builds from a source checkout are never updated from a release. Update those with:
 
 ```bash
 git pull
@@ -114,4 +124,4 @@ bun install
 bun run build
 ```
 
-Then reload the extension in every connected browser profile (`chrome://extensions` in Chrome, `brave://extensions` in Brave, `about:debugging` in Firefox or Zen). The dashboard shows a banner when the extension files on disk are newer than the running background process, and it shows the companion's version next to the connection status so you can tell when the two are out of step.
+Then reload the extension in every connected browser profile (`chrome://extensions` in Chrome, `brave://extensions` in Brave, `about:debugging` in Firefox or Zen). The dashboard shows a banner when the extension files on disk are newer than the running background process. Set `BROWSPARK_UPDATE_CHECK=0` in the companion's environment to stop all update checks.
