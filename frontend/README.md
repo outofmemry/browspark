@@ -1,10 +1,12 @@
 # Browspark landing page
 
-A standalone static site using HTML, CSS, and a small JavaScript module. It shares the extension's neutral dark palette and green accent. There is no frontend framework, hydration, runtime dependency, or external font request. Bun is used only for local serving and minifying the production JavaScript and CSS.
+A standalone static site using HTML, CSS, and a small JavaScript module. It uses the same design tokens as the extension dashboard's dark theme: mint for browsers and live state, violet for agents. There is no frontend framework, hydration, runtime dependency, or external font request. Bun is used only for local serving and minifying the production JavaScript and CSS.
+
+Sections, top to bottom: hero with the setup one-liner and an animated connection graph (agents → companion → browsers) whose tool-call ticker lights up the agent and browser involved; a client logo marquee; the interactive dashboard preview; how it works; capabilities; the real Graph screenshot; quickstart with the client picker; FAQ; closing call to action.
 
 The page describes simultaneous Chrome, Brave, Firefox and Zen extension profiles plus named developer sessions. The Firefox extension needs Firefox 153+ (or a compatible Zen build), uses unsigned temporary installation from source and must run with the matching source companion. All browsers expose the same 45 tool names (23 browser, 22 developer); Firefox extension mode has narrower capabilities than Firefox/Zen BiDi developer mode. Their developer profiles are separate from the user's existing sessions. Keep this distinction in visible copy, metadata, and the illustrative preview.
 
-The connection graph section uses a screenshot of the actual graph card after Reset and Fit, with four agent sessions and four browser profiles in a balanced layout. The disposable test session includes simulated browser profiles; capture details are in `assets/SOURCES.md`. Its copy covers free node dragging, pan and zoom, Fit and Reset, logos and fallback names, and the per-profile Graph setting. Keep the screenshot aligned with the dark and light dashboard views in `docs/dashboard/graph.mdx` and the extension. The screenshot opens at full size; the landing page does not connect to a companion or expose browser access. Logo recognition does not imply automation support for additional browsers.
+The connection graph section uses a screenshot of the actual graph card after Reset and Fit, with four agents and four browser profiles in a balanced layout. It was captured from sample connection data; details are in `assets/SOURCES.md`. Its copy covers free node dragging, pan and zoom, Fit and Reset, logos and fallback names, and the per-profile Graph setting. Keep the screenshot aligned with the dark and light dashboard views in `docs/dashboard/graph.mdx` and the extension. The screenshot opens at full size; the landing page does not connect to a companion or expose browser access. Logo recognition does not imply automation support for additional browsers.
 
 ## Develop
 
@@ -32,7 +34,7 @@ Run `bun run test` to rebuild and smoke-test the production server, static asset
 
 Upload the contents of `frontend/dist/` to any static host. When configuring a host from the repository, set its working directory to `frontend`, its build command to `bun run build`, and its publish directory to `dist`. The deployed site does not need Bun or a server-side application. Enable compression on the host for HTML, CSS, JavaScript, and SVG files.
 
-Edit `index.html` for content and links, `styles.css` for styling, and `main.js` for interactions. The preview is illustrative: shared-tab switches show Chrome, Brave and Firefox, while the tool ticker also shows Firefox and Zen developer contexts. Its page commands use explicit companion tab IDs; keep sample arguments aligned with the live tool schemas. Keep the logos in `assets/`; their source credits are included alongside the assets.
+Edit `index.html` for content and links, `styles.css` for styling, and `main.js` for interactions. The hero graph and dashboard preview are illustrative: shared-tab switches show Chrome, Brave and Firefox, while the tool ticker also shows Firefox and Zen developer contexts. The hero graph's lines are drawn by `main.js` from the laid-out nodes, so they follow any layout change. With reduced motion, the ticker stops typing, connection lines stay still, and the logo marquee becomes a static wrapped list. Its page commands use explicit companion tab IDs; keep sample arguments aligned with the live tool schemas. Keep the logos in `assets/`; their source credits are included alongside the assets.
 
 ## Search discovery
 
@@ -53,3 +55,5 @@ Historical production build, Lighthouse simulated mobile, September 12, 2026, be
 Browser checks covered desktop, 390 px and 320 px layouts, preview switches and views, all six client configurations, copying, remembered selection, mobile navigation, and FAQ expansion.
 
 September 17, 2026 graph update: production build and all four frontend tests pass. The graph showcase and logo FAQ were checked at desktop, 390 px and 320 px widths with no page overflow or browser console errors. The dashboard image loads locally and links to its full-size version.
+
+October 5, 2026 redesign: production build and all four frontend tests pass. Desktop (1440 px), tablet (1024 px) and phone (390 px) layouts were checked with no page overflow or console errors, along with the hero ticker and node highlighting, logo marquee, preview switches and views, client picker, copy buttons and reduced motion.
