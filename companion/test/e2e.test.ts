@@ -10,7 +10,7 @@ import { join, resolve, extname } from 'node:path';
 import { WebSocket, WebSocketServer } from 'ws';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { isNewTab } from '../../shared/protocol.ts';
+import { isNewTab, UPDATE_PATH } from '../../shared/protocol.ts';
 import { companionTab } from './harness.ts';
 
 const CHROME = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -66,6 +66,9 @@ const foregroundMainTab = async () => {
   await evaluate(`chrome.tabs.update(${nativeTabId}, {active:true})`);
 };
 
+/** A stand-in companion for bridge tests. The extension's separate update check (/update) is refused, so only bridge connections reach it. */
+const fakeCompanion = () => new WebSocketServer({ host: '127.0.0.1', port: 0, verifyClient: ({ req }: { req: { url?: string } }) => req.url !== UPDATE_PATH });
+
 describe.skipIf(skip)('e2e', () => {
 beforeAll(async () => {
   // static server for the deterministic test app
@@ -91,7 +94,7 @@ beforeAll(async () => {
 
   // companion over stdio, as an MCP client would run it
   client = new Client({ name: 'e2e', version: '0' });
-  await client.connect(new StdioClientTransport({ command: 'bun', args: [join(ROOT, 'companion/src/index.ts'), '--port', '0'], stderr: 'pipe' }));
+  await client.connect(new StdioClientTransport({ command: 'bun', args: [join(ROOT, 'companion/src/index.ts'), '--port', '0'], stderr: 'pipe', env: { ...process.env, BROWSPARK_UPDATE_CHECK: '0' } as Record<string, string> }));
   const status = await ok('browser_status');
   const PORT = Number(/ws:\/\/127\.0\.0\.1:(\d+)/.exec(status)![1]);
   assert.notEqual(PORT, 0);
@@ -571,7 +574,7 @@ test('Settings Reconnect replaces a live connection and preserves access', async
 test('an unanswered companion handshake stays reconnecting and shows rejection', async () => {
   const previousHash = await evaluate('location.hash');
   const before = await evaluate('chrome.runtime.sendMessage({type:"getState"})');
-  const delayed = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+  const delayed = fakeCompanion();
   await new Promise<void>((resolve) => delayed.once('listening', resolve));
   let attempts = 0;
   let helloTimer: ReturnType<typeof setTimeout>;
@@ -616,7 +619,7 @@ test('an unanswered companion handshake stays reconnecting and shows rejection',
 test('an outdated companion stops reconnecting without clearing sharing', async () => {
   const previousHash = await evaluate('location.hash');
   const before = await evaluate('chrome.runtime.sendMessage({type:"getState"})');
-  const companion = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+  const companion = fakeCompanion();
   await new Promise<void>((resolve) => companion.once('listening', resolve));
   let attempts = 0;
   companion.on('connection', (socket) => {
@@ -655,7 +658,7 @@ test('an outdated companion stops reconnecting without clearing sharing', async 
 test('automatic retries stay visibly disconnected until the companion responds', async () => {
   const previousHash = await evaluate('location.hash');
   const before = await evaluate('chrome.runtime.sendMessage({type:"getState"})');
-  const companion = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+  const companion = fakeCompanion();
   await new Promise<void>((resolve) => companion.once('listening', resolve));
   let first!: WebSocket;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;

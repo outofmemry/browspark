@@ -82,7 +82,7 @@ describe.skipIf(process.env.FIREFOX_EXTENSION_E2E !== '1')('Firefox shared-tab e
     await waitFor('document.querySelector("#main h1")?.textContent === "Tabs"');
 
     client = new Client({ name: 'firefox-extension-e2e', version: '0' });
-    await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(ROOT, 'companion/src/index.ts'), '--port', '0'], stderr: 'inherit', env: { ...process.env, BROWSPARK_ARTIFACTS: join(temp, 'artifacts'), BROWSPARK_PROFILE: join(temp, 'chrome'), BROWSPARK_PROFILES: join(temp, 'profiles') } }));
+    await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(ROOT, 'companion/src/index.ts'), '--port', '0'], stderr: 'inherit', env: { ...process.env, BROWSPARK_ARTIFACTS: join(temp, 'artifacts'), BROWSPARK_PROFILE: join(temp, 'chrome'), BROWSPARK_PROFILES: join(temp, 'profiles'), BROWSPARK_UPDATE_CHECK: '0' } }));
     ({ call, ok } = callers(client));
     const status = await ok('browser_status');
     const port = Number(/ws:\/\/127\.0\.0\.1:(\d+)/.exec(status)![1]);

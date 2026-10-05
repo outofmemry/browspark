@@ -53,9 +53,22 @@ export async function launchExtensionChrome(executable = CHROME, extensionPath =
   } catch (error) { await cleanup(); throw spawnError ?? error; }
 }
 
-export async function startCompanion(name = 'e2e'): Promise<Client> {
+/** Turn on Developer mode in the throwaway profile, as users have it when they load an unpacked extension.
+ *  Without it Chromium disables an unpacked extension when it reloads (unsupportedDeveloperExtension). */
+export async function enableDeveloperMode(ext: Ext): Promise<void> {
+  const { targetId } = await ext.cdp.send('Target.createTarget', { url: 'chrome://extensions' });
+  const { sessionId } = await ext.cdp.send('Target.attachToTarget', { targetId, flatten: true });
+  for (let i = 0; i < 50; i++) {
+    const r = await ext.cdp.send('Runtime.evaluate', { expression: 'typeof chrome !== "undefined" && !!chrome.developerPrivate && chrome.developerPrivate.updateProfileConfiguration({ inDeveloperMode: true }).then(() => chrome.developerPrivate.getProfileConfiguration()).then((c) => c.inDeveloperMode)', awaitPromise: true, returnByValue: true }, sessionId).catch(() => undefined);
+    if (r?.result?.value === true) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  await ext.cdp.send('Target.closeTarget', { targetId });
+}
+
+export async function startCompanion(name = 'e2e', env: Record<string, string> = {}): Promise<Client> {
   const client = new Client({ name, version: '0' });
-  await client.connect(new StdioClientTransport({ command: 'bun', args: [join(ROOT, 'companion/src/index.ts'), '--port', '0'], stderr: 'inherit', env: { ...process.env, BROWSPARK_ARTIFACTS: mkdtempSync(join(tmpdir(), 'bmcp-artifacts-')), BROWSPARK_PROFILE: mkdtempSync(join(tmpdir(), 'bmcp-devprofile-')), BROWSPARK_PROFILES: mkdtempSync(join(tmpdir(), 'bmcp-profiles-')) } }));
+  await client.connect(new StdioClientTransport({ command: 'bun', args: [join(ROOT, 'companion/src/index.ts'), '--port', '0'], stderr: 'inherit', env: { ...process.env, BROWSPARK_ARTIFACTS: mkdtempSync(join(tmpdir(), 'bmcp-artifacts-')), BROWSPARK_PROFILE: mkdtempSync(join(tmpdir(), 'bmcp-devprofile-')), BROWSPARK_PROFILES: mkdtempSync(join(tmpdir(), 'bmcp-profiles-')), BROWSPARK_UPDATE_CHECK: '0', ...env } as Record<string, string> }));
   return client;
 }
 
