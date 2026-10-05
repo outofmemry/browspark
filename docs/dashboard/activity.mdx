@@ -15,7 +15,7 @@ Switch it on under **Settings → Privacy → Activity log**. From then on the e
 | Agent | The MCP client name that issued it (for example `claude-code`, `codex`, `gemini`). |
 | Tab | Title of the target tab. |
 | Command | The DevTools Protocol method or bridge request, such as `Input.dispatchMouseEvent` or `tabs.create`. |
-| Latency | Round-trip time in milliseconds. |
+| Latency | Round-trip time in milliseconds, with a bar relative to the slowest command shown. Commands taking a second or more are highlighted. |
 | Result | OK, or the error text. |
 
 Turning the log off clears it immediately. Restarting the browser also clears it because the service worker starts fresh.
