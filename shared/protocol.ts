@@ -2,15 +2,28 @@
 // Requests flow companion -> extension. Events flow extension -> companion.
 
 export const DEFAULT_PORT = 9223;
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export interface Req { id: number; method: ReqMethod; params?: unknown }
 export interface Res { id: number; result?: unknown; error?: string }
 export interface Evt { event: EvtName; params?: unknown }
 export type Msg = Req | Res | Evt;
 
-export type ReqMethod = 'tabs.list' | 'tabs.create' | 'tabs.close' | 'tabs.activate' | 'tabs.hold' | 'tabs.prepare' | 'window.size' | 'downloads.list' | 'tools.catalog' | 'graph.state' | 'cdp';
+export type ReqMethod = 'tabs.list' | 'tabs.create' | 'tabs.close' | 'tabs.activate' | 'tabs.hold' | 'tabs.prepare' | 'window.size' | 'downloads.list' | 'tools.catalog' | 'graph.state' | 'extensions.list' | 'extensions.info' | 'extensions.setEnabled' | 'extensions.uninstall' | 'extensions.options' | 'extensions.message' | 'cdp';
 export type EvtName = 'hello' | 'tabs' | 'cdp.event' | 'detached' | 'ping' | 'tools.policy';
+
+/** Other installed extensions, as reported by chrome.management / browser.management. */
+export interface ExtensionInfo {
+  id: string; name: string; version: string; enabled: boolean; type: string; description?: string; homepageUrl?: string; optionsUrl?: string; installType?: string;
+  mayDisable?: boolean; permissions: string[]; hostPermissions: string[]; permissionWarnings?: string[];
+  /** This is Browspark itself: it can be listed but never managed, messaged or opened. */
+  self?: boolean;
+}
+/** Chromium ids are 32 letters a-p; Firefox ids are `name@host` or `{uuid}`. Validated before any id reaches an extension API. */
+export const isExtensionId = (v: unknown): v is string => typeof v === 'string' && (/^[a-p]{32}$/.test(v) || /^(?:\{[0-9a-fA-F-]{36}\}|[\w.+-]{1,64}@[\w.-]{1,64})$/.test(v));
+/** chrome-extension:// and moz-extension:// pages: only reachable through the explicit options flow. */
+export const isExtensionPage = (url: string) => /^(?:chrome-extension|moz-extension):\/\/[^/?#]+(?:[/?#]|$)/i.test(url);
+export const MESSAGE_LIMIT_BYTES = 1_000_000;
 
 export interface ToolInfo { name: string; description: string }
 /** Dashboard connection metadata only: never page URLs, titles, contents or grants. */
@@ -79,4 +92,51 @@ export function unsupportedReason(url: string, engine: 'chromium' | 'firefox' = 
   if (engine === 'firefox' && !/^https?:\/\//i.test(url)) return 'Firefox extension supports HTTP(S) pages only';
   if (/^https:\/\/chrome(web)?store\.google\.com/.test(url)) return 'Chrome Web Store';
   return undefined;
+}
+
+// Extension updates: a separate WebSocket at /update on the companion port. It never depends on PROTOCOL_VERSION,
+// so an extension too old for the bridge handshake can still ask a newer companion to install the current release.
+export const UPDATE_PATH = '/update';
+export type UpdateEngine = 'chromium' | 'firefox';
+/** Extension -> companion. `id` is chrome.runtime.id; it identifies an unpacked Chromium folder by its path hash. */
+export type UpdateRequest =
+  | { type: 'check'; engine: UpdateEngine; id: string; version: string; force?: boolean }
+  | { type: 'install'; engine: UpdateEngine; id: string; version: string; path?: string };
+export interface UpdateTarget { path: string; display: string; kind: 'folder' | 'zip' }
+/** Companion -> extension answer to `check`. */
+export interface UpdateStatus {
+  type: 'status';
+  current: string;
+  companion: string;
+  latest?: string;
+  available: boolean;
+  releaseUrl?: string;
+  notes?: string;
+  publishedAt?: string;
+  /** Where `install` writes; absent when the folder is unknown or ambiguous. */
+  target?: UpdateTarget;
+  /** Several matching Firefox folders: the user picks one. */
+  candidates?: UpdateTarget[];
+  installable: boolean;
+  /** Why `installable` is false: not-found, ambiguous, disabled, no-asset, offline. */
+  reason?: 'not-found' | 'ambiguous' | 'disabled' | 'no-asset' | 'offline';
+  error?: string;
+  checkedAt: number;
+}
+export type UpdateEvent =
+  | UpdateStatus
+  | { type: 'progress'; stage: 'download' | 'verify' | 'install'; received?: number; total?: number }
+  | { type: 'done'; version: string; target: UpdateTarget }
+  | { type: 'error'; message: string };
+const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+export const isVersion = (v: unknown): v is string => typeof v === 'string' && v.length <= 64 && SEMVER.test(v);
+/** Semantic version order; a prerelease sorts before its release. */
+export function compareVersions(a: string, b: string): number {
+  const parse = (v: string) => { const [core, pre] = v.replace(/^v/, '').split('+')[0]!.split(/-(.*)/s); return { nums: core!.split('.').map(Number), pre }; };
+  const x = parse(a), y = parse(b);
+  for (let i = 0; i < 3; i++) if ((x.nums[i] ?? 0) !== (y.nums[i] ?? 0)) return (x.nums[i] ?? 0) - (y.nums[i] ?? 0);
+  if (x.pre === y.pre) return 0;
+  if (x.pre === undefined) return 1;
+  if (y.pre === undefined) return -1;
+  return x.pre < y.pre ? -1 : 1;
 }

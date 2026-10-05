@@ -41,6 +41,8 @@ Codex, OpenCode, Cursor, Antigravity, Muse Code and Hermes are covered in the [c
 
 **3. Share tabs.** Open each extension dashboard and share the tabs the agent may use. The [Graph page](https://docs.browspark.krishm.dev/dashboard/graph) shows agents and browsers on a draggable canvas with logos and animated connections; toggle it in Settings. Ask the agent to call `browser_status` to select a listed `tabId` or use its `browserId` when opening a new tab. Sharing permissions stay separate in each browser profile.
 
+**Updates.** When a new release is out, the extension dashboard offers it and installs it into the folder you loaded, then reloads itself. See [Updating](https://docs.browspark.krishm.dev/get-started/installation#updating).
+
 **Using Firefox or Zen?** With Firefox 153+ or a Zen build based on Firefox 153+, run `bun install && bun run package` in this checkout. Open `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on** → `dist/firefox-extension/manifest.json` (or `dist/browspark-firefox-extension.zip`). Register the matching source companion with command `bun` and the absolute path to `companion/src/index.ts`. Open Browspark, enable user scripts when prompted and share your existing tabs. This unsigned build needs loading again after a browser restart. See [Firefox extension setup and exceptions](https://docs.browspark.krishm.dev/reference/firefox).
 
 ## What it does

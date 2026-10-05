@@ -14,6 +14,7 @@ import { Page } from './page.ts';
 import { Capture } from './devtools/capture.ts';
 import { installLiveView } from './live.ts';
 import { installConnectionGraph } from './graph.ts';
+import { updaterFromEnv } from './updates.ts';
 import { type Ctx, type ClientState, clients, toolCatalog, setDisabledTools, disabledTools, devGate, combinedPolicy } from './context.ts';
 import { version as VERSION } from '../../package.json';
 import type { ToolPolicy } from '../../shared/protocol.ts';
@@ -70,6 +71,8 @@ function buildServer(label: string): McpServer {
   return server;
 }
 installFetchHandler({ sessions, capture });
+const updater = updaterFromEnv(VERSION);
+bridge.updateHandler = (ws, origin) => updater.handleSocket(ws, origin);
 installLiveView(bridge, sessions);
 const stopGraph = installConnectionGraph(bridge, sessions);
 

@@ -28,6 +28,9 @@ or the compiled `dist/browspark` with the same flags.
 | `BROWSPARK_PROFILE` | `~/.browspark/profile` | Profile directory of the `default` Chrome developer context. |
 | `BROWSPARK_PROFILES` | `~/.browspark/profiles` | Parent of named Chrome profiles and the `.brave/<context>`, `.firefox/<context>` and `.zen/<context>` profiles. |
 | `BROWSPARK_ARTIFACTS` | `~/.browspark/artifacts` | Output directory for traces, profiles, snapshots, HAR, PDFs, reports and flows. |
+| `BROWSPARK_UPDATE_CHECK` | on | `0` stops the companion from checking GitHub for extension releases and installing them. |
+| `BROWSPARK_RELEASES_URL` | GitHub's latest-release API for `outofmemry/browspark` | Release metadata endpoint for extension updates, for mirrors and tests. |
+| `BROWSPARK_EXTENSION_DIR` | unset | Extra extension folders to consider when updating, separated by `:` (`;` on Windows). Folders that receive an update are remembered in `~/.browspark/extensions.json`. |
 
 Recorder exports read flow parameters from environment variables named after the parameter in upper case (`{{email}}` → `EMAIL`).
 
@@ -63,6 +66,7 @@ browspark: http client session 5f1e9c0a
 browspark: relaying stdio to the companion already running on port 9223
 browspark: agent disconnected: claude-code
 browspark: extension disconnected: ext:<id>
+browspark: updated the chromium extension in ~/browspark-extension to <version>
 ```
 
 ## Exit behaviour

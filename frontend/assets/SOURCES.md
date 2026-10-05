@@ -21,6 +21,20 @@ Client marks were copied from the extension's officially sourced assets, retriev
 
 All assets are local. Render client marks with `object-fit: contain`; no color filters are needed.
 
+## Browser marks
+
+`browsers/chrome.svg`, `browsers/brave.svg`, `browsers/firefox.png` and `browsers/zen.svg` are unmodified copies of the extension's officially sourced browser marks; see `extension/shared/assets/browsers/SOURCES.md` for their origins. The hero graph uses them to identify example browser profiles; their inclusion does not imply endorsement or additional automation support.
+
+## Product screenshot
+
+`dashboard-graph.png` is a 2178 × 1370 screenshot of the redesigned dashboard's actual Graph card, captured on 2026-10-05. The dashboard code is unmodified; for a reproducible layout it ran in a local preview page that answers the dashboard's `chrome.runtime` messages with fixed sample state instead of a live worker. The sample graph has four agents (Codex, Claude Code, Cursor, OpenCode) and four browser profiles (Chrome, Brave, Firefox, Zen), each with one shared tab. This is an illustrative topology, not a browser compatibility test, and contains no real user browsing data.
+
+The capture uses a 1440 × 880 CSS-pixel viewport at 2× resolution in headless Chromium. After the logos load, **Reset** restores the default node positions and **Fit** brings every node into view; the `#connection-graph` element is captured directly, including the dotted canvas, connection lines, logos and controls, and is not retouched. Dark and light captures of the same layout are also stored in `docs/images/dashboard-graph-dark.png` and `docs/images/dashboard-graph-light.png`.
+
+## Browser marks
+
+`browsers/chrome.svg`, `browsers/brave.svg`, `browsers/firefox.png` and `browsers/zen.svg` are unmodified copies of the extension's officially sourced browser marks; see `extension/shared/assets/browsers/SOURCES.md` for their origins. The hero graph uses them to identify example browser profiles; their inclusion does not imply endorsement or additional automation support.
+
 ## Product screenshot
 
 `dashboard-graph.png` is a 2242 × 1338 screenshot of Browspark's actual Graph card, captured on 2026-09-17 in a disposable Chrome profile using `companion/test/harness.ts`. Four local MCP test sessions identify as Codex, Claude Code, Cursor and OpenCode. Chrome runs the real extension; Brave, Firefox and Zen are simulated extension connections using the normal bridge protocol. This is an illustrative topology, not a browser compatibility test, and contains no real user browsing data.

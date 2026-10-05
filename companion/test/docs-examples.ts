@@ -6,6 +6,7 @@ export const NOTES: Record<string, string> = {
   devtools_cdp: 'Chromium developer mode only. Firefox, Zen and extension tabs cannot send raw CDP commands. For target:browser, specify context when several developer browsers are running.',
   devtools_lighthouse: 'Chromium developer mode only. Lighthouse opens its own tab in the selected developer browser. Pass a developer tabId to choose between running Chromium contexts. Firefox and Zen are unsupported.',
   devtools_memory: 'Heap snapshots, class diffs, retainers and allocation sampling need Chromium developer mode because extensions cannot use HeapProfiler. usage and growth also work in Chromium extension mode. Firefox and Zen do not support this tool.',
+  browser_extensions: 'Extension mode only, and off until the user turns on Settings → Other extensions in the Browspark dashboard (which also needs the browser\'s management permission). Cannot read another extension\'s storage, cannot bypass externally_connectable, and never manages Browspark itself. uninstall shows the browser\'s own confirmation. Options pages are automatable only in Chromium, only when the user enables Share options pages, and the browser may still refuse the debugger; chrome://extensions and store pages stay blocked. Firefox opens options pages but cannot automate them.',
   browser_key: 'Keys reach the web page only. Browser shortcuts such as opening DevTools or switching tabs are handled by the browser UI and cannot be triggered here.',
   browser_batch: 'Each step is a normal tool call. The batch stops at the first error and returns the results collected so far.',
   devtools_audit: 'Runs in-page checks for layout overflow, broken images, WCAG accessibility, and SEO across Chromium and Firefox in both modes. Console runtime errors and network requests are inspected from active DevTools capture sessions (available in Chromium and developer-mode Firefox; Firefox extension mode does not support native capture sessions).',
@@ -28,6 +29,13 @@ export const EXAMPLES: Record<string, Ex> = {
     { title: 'Open a page in the user\'s window', args: { action: 'new', url: 'https://example.com' } },
     { title: 'Choose a connected extension browser', args: { action: 'new', browserId: 'ext:example-browser-id', url: 'https://example.com' }, text: 'Use a browserId returned by browser_status or browser_tabs.' },
     { title: 'Open in a named developer context', args: { action: 'new', context: 'zen-work', url: 'https://example.com' } },
+  ],
+  browser_extensions: [
+    { title: 'List installed extensions', args: { action: 'list' } },
+    { title: 'Inspect permissions', args: { action: 'info', extensionId: 'abcdefghijklmnopabcdefghijklmnop' } },
+    { title: 'Disable an extension', args: { action: 'disable', extensionId: 'abcdefghijklmnopabcdefghijklmnop' } },
+    { title: 'Open an options page', args: { action: 'open', extensionId: 'abcdefghijklmnopabcdefghijklmnop' } },
+    { title: 'Message a cooperating extension', args: { action: 'message', extensionId: 'abcdefghijklmnopabcdefghijklmnop', message: { type: 'ping' } }, text: 'The target must list Browspark in externally_connectable and answer in runtime.onMessageExternal.' },
   ],
   browser_navigate: [
     { args: { tabId: 1234, url: 'https://example.com/login' } },

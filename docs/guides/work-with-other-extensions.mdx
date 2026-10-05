@@ -1,0 +1,42 @@
+---
+title: "Work with other extensions"
+description: "Let an agent list, manage and message the other extensions in your browser, behind your consent."
+---
+
+The [`browser_extensions`](/tools/browser/browser_extensions) tool works with the other extensions installed in a connected Chrome, Chromium, Brave, Firefox or Zen profile. It is off until you turn it on.
+
+## Turn it on
+
+1. Open the Browspark dashboard → **Settings → Other extensions**.
+2. Click **Grant permission**. The browser asks for the optional `management` permission.
+3. Switch on **Let agents work with other extensions**.
+
+Turning the switch off, or removing the permission in the browser, stops the tool again. With several profiles connected, each one has its own consent; pass `browserId` to pick one.
+
+## What the agent can do
+
+| Action | Result |
+|---|---|
+| `list` | Name, id, version, enabled state and options page of every extension |
+| `info` | Adds permissions, host permissions, install type and the browser's permission warnings |
+| `enable` / `disable` | Changes the enabled state. Policy-managed extensions refuse. The browser may ask you before enabling something you turned off |
+| `uninstall` | Asks the browser to remove it. **You confirm in the browser's own dialog** |
+| `open` | Opens the extension's options page in a tab |
+| `message` | Sends one JSON message with `runtime.sendMessage` and returns the JSON reply |
+
+## Limits
+
+- Browspark cannot read another extension's storage and cannot force-enable an extension without the browser's consent.
+- Messages reach only extensions that accept Browspark: the target lists Browspark's extension id in `externally_connectable` (when it restricts senders) and answers in `runtime.onMessageExternal`. Messages and replies are JSON, at most 1 MB, with a 30 second timeout.
+- Browspark can never list-and-manage, message or open itself.
+- `chrome://extensions`, the Chrome Web Store, Firefox Add-ons and `about:` pages stay blocked.
+
+## Automating an options page
+
+By default the options tab opens but is not shared, so it cannot be automated. Turn on **Share options pages the agent opens** (Chromium only) and the tab the agent opened is shared like any other. Only that tab, and only while it stays on the extension's own pages. Chromium may still refuse to attach its debugger to another extension's page; the tool then returns an explicit error and suggests developer mode with the extension loaded unpacked (`browser_session` with `extensions`).
+
+Firefox and Zen open options pages but cannot automate them.
+
+## Audit
+
+With the [activity log](/dashboard/activity) on, every `extensions.*` call appears with the agent's name, the target extension id, the outcome and any error.

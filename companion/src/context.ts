@@ -58,10 +58,10 @@ const disabledResult = (name: string): Result => ({ content: [{ type: 'text', te
 
 export function tool<S extends z.ZodRawShape>(ctx: Ctx, name: string, description: string, schema: S, handler: (args: z.infer<z.ZodObject<S>>) => Promise<Result | string | object>) {
   const wrapped = (args: any) => clientStore.run(ctx.client, () => run(async () => {
-    const browserSelection = name === 'browser_fetch' || name === 'browser_tabs' && ['list', 'new'].includes(args.action);
+    const browserSelection = name === 'browser_fetch' || name === 'browser_extensions' || name === 'browser_tabs' && ['list', 'new'].includes(args.action);
     const global = name === 'browser_status' || name === 'browser_session' || name === 'devtools_lighthouse' || name === 'browser_policy' && (args.default || args.action === 'status') || name === 'devtools_cdp' && args.target === 'browser' || name === 'devtools_recorder' && !['start', 'replay'].includes(args.action);
     if (!global && !browserSelection && 'tabId' in schema) args = { ...args, tabId: await ctx.sessions.resolve(args.tabId, name === 'browser_navigate' && args.action === 'goto') };
-    const connection = global ? undefined : browserSelection ? ctx.sessions.bridge?.connections().find(c => c.id === args.browserId) : ctx.sessions.bridge?.connectionForTab(args.tabId);
+    const connection = global ? undefined : browserSelection ? ctx.sessions.bridge?.connections().find((c, _, all) => c.id === (args.browserId ?? (name === 'browser_extensions' && all.length === 1 ? c.id : undefined))) : ctx.sessions.bridge?.connectionForTab(args.tabId);
     if (connection?.policy ? connection.policy.disabled.includes(name) : disabledTools.has(name)) return disabledResult(name);
     if (firefoxExtensionUnsupportedTool(name, args) && ctx.sessions.bridge?.connectionForTab(args.tabId)?.browserEngine === 'firefox') throw new Error(`${name}${args.action ? ` action:${args.action}` : ''} is unsupported in the Firefox extension. See the Firefox support guide for extension capabilities and developer-session alternatives.`);
     if (firefoxUnsupportedTool(name, args)) {

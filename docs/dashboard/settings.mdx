@@ -3,12 +3,19 @@ title: "Settings page"
 description: "Connection graph, port, developer-browser policy, agent overlay, activity log and the emergency stop."
 ---
 
+Settings are grouped into cards. On wide windows, a section list beside them jumps to each card.
+
 ## Companion
 
 | Setting | Notes |
 |---|---|
 | Bridge port | Where the companion listens on localhost. Change it when you run the companion with `--port`; the Overview setup snippets follow. Default `9223`. |
-| Connection | Live status with the connection age, or the last error, plus **Connect** / **Disconnect**. |
+| Browser label | The name and logo shown for this profile in the [Graph](/dashboard/graph). **Auto** detects the browser; pick a name when a browser reports itself as another. |
+| Connection | Live status with the connection age, or the last error, plus **Reconnect** and **Save** (applies a changed port). |
+
+## Updates
+
+Shows the extension and companion versions, the latest release and when it was checked, with **Check now**. When a release is out, **Update…** opens the update dialog. **Check for updates** (on by default) lets the extension ask your local companion, which checks Browspark's GitHub releases at most every 6 hours; with it off you get no badge, notification or prompt. **Install location** is the folder updates are written to: the folder this browser loaded Browspark from. See [Updating](/get-started/installation#updating).
 
 ## Other clients
 
@@ -26,15 +33,21 @@ Whether the agent may launch separate Chrome, Brave, Firefox or Zen sessions. **
 
 On by default. Shows [Graph](/dashboard/graph) in the sidebar with the agents and browsers connected to the companion. Turning it off hides the page and stops graph updates for this profile. It does not disconnect agents or change tab sharing. The setting is saved independently in each browser profile.
 
+## Other extensions
+
+Controls the [`browser_extensions`](/tools/browser/browser_extensions) tool. **Grant permission** asks the browser for the optional `management` permission (the browser shows its own prompt). Once granted, **Let agents work with other extensions** is the consent switch: it also turns the tool on, and turning it off switches the tool off again. The tool starts switched off on every profile.
+
+**Share options pages the agent opens** (Chromium only) shares the options tab the agent opened so it can be automated. It never applies to Browspark's own pages, `chrome://extensions` or store pages.
+
+The list shows every installed extension with an enable/disable switch for your own use. Agent actions on extensions appear in [Activity](/dashboard/activity) when the activity log is on. See [Work with other extensions](/guides/work-with-other-extensions).
+
 ## Browser behavior
 
 **Work in background — Do not switch away from my active tab** is on by default and saved per browser profile. Agent-created tabs open in the background; input and screenshots target the assigned tab without activating it. Explicit agent activation and window resizing are blocked while enabled. Opening the dashboard or selecting a tab yourself still works.
 
 If a page needs foreground interaction, select the agent tab yourself or temporarily turn this setting off. With it off, the previous foreground behavior is available. Check the page before retrying an action.
 
-## Agent overlay
-
-**Show the agent at work** switch, on by default. Draws the soft cyan halo, moving cursor and Stop button on this profile's tabs while the agent drives them. See [The agent overlay](/concepts/tabs-and-sharing#the-agent-overlay).
+The same card holds **Show the agent at work**, the agent overlay switch, on by default. Draws the soft cyan halo, moving cursor and Stop button on this profile's tabs while the agent drives them. See [The agent overlay](/concepts/tabs-and-sharing#the-agent-overlay).
 
 The overlay is available in Chromium and Firefox. On Firefox extension tabs the in-page Stop button is unavailable; use the dashboard's sharing and Stop controls instead.
 
@@ -48,4 +61,4 @@ Stops access to this profile's tabs, clears its shared list, switches Share ever
 
 ## Appearance
 
-The sidebar's theme control switches between system, light and dark. The choice is stored per browser profile. Every page has full light and dark palettes; screenshots in these docs show both.
+The theme control next to the logo at the top of the sidebar switches between system, light and dark. The choice is stored per browser profile. Every page has full light and dark palettes; screenshots in these docs show both.

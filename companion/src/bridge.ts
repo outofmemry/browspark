@@ -5,14 +5,15 @@ import { LIVE_HTML } from './live.ts';
 import { currentClient } from './context.ts';
 import { allocateDevTabId } from './cdp.ts';
 import {
-  isEvt, isRes, type CdpEventParams, type DetachedParams, type HelloParams, type Msg, type Req,
-  type ReqMethod, type TabInfo, type ToolPolicy, PROTOCOL_VERSION,
+  isEvt, isRes, isExtensionId, type CdpEventParams, type DetachedParams, type HelloParams, type Msg, type Req,
+  type ReqMethod, type TabInfo, type ToolPolicy, PROTOCOL_VERSION, UPDATE_PATH,
 } from '../../shared/protocol.ts';
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const identity = (v: unknown): v is string => typeof v === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(v);
 const nativeId = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 0;
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v);
+const validExtension = (v: unknown) => object(v) && isExtensionId(v.id) && typeof v.name === 'string' && typeof v.version === 'string' && typeof v.enabled === 'boolean' && Array.isArray(v.permissions) && Array.isArray(v.hostPermissions);
 
 export interface BridgeConnection { id: string; browser?: string; browserEngine?: 'chromium' | 'firefox'; extensionVersion?: string; tabs: TabInfo[]; policy?: ToolPolicy }
 interface Identity { id: string; session?: string; nativeToGlobal: Map<number, number>; globalToNative: Map<number, number> }
@@ -27,6 +28,8 @@ export class Bridge extends EventEmitter {
   private http?: Server;
   /** Set by installLiveView: handles a browser viewer connection for a tab. */
   viewerHandler?: (ws: WebSocket, tabId: number) => void;
+  /** Set by the entry point: extension update checks and installs at /update, independent of the bridge protocol version. */
+  updateHandler?: (ws: WebSocket, origin?: string) => void;
   /** Set by the entry point: MCP over Streamable HTTP at /mcp for URL-based clients (web agents, hosted assistants). */
   mcpHandler?: (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => Promise<void>;
   private active = new Map<string, Connection>();
@@ -74,6 +77,10 @@ export class Bridge extends EventEmitter {
           const tabId = Number(u.searchParams.get('tab'));
           if (!tabId || !this.viewerHandler) { socket.destroy(); return; }
           this.wss!.handleUpgrade(req, socket, head, (ws) => this.viewerHandler!(ws, tabId));
+          return;
+        }
+        if (u.pathname === UPDATE_PATH && this.updateHandler) {
+          this.wss!.handleUpgrade(req, socket, head, (ws) => this.updateHandler!(ws, req.headers.origin));
           return;
         }
         this.wss!.handleUpgrade(req, socket, head, (ws) => this.accept(ws));
@@ -161,10 +168,14 @@ export class Bridge extends EventEmitter {
       try {
         let result = msg.result;
         if (p.method === 'tabs.list') result = this.updateTabs(c, result);
-        if (p.method === 'tabs.create') {
+        if (p.method === 'tabs.create' || p.method === 'extensions.options') {
           if (!object(result) || !nativeId(result.id)) throw new Error('invalid created tab');
           result = { ...result, id: this.tabId(c, result.id), browserId: c.info.id, browserName: c.info.browser }; c.fresh = false;
         }
+        if (p.method === 'extensions.list' && (!Array.isArray(result) || result.some((e) => !validExtension(e)))) throw new Error('invalid extension list');
+        if ((p.method === 'extensions.info' || p.method === 'extensions.setEnabled') && !validExtension(result)) throw new Error('invalid extension info');
+        if (p.method === 'extensions.message' && (!object(result) || !('reply' in result))) throw new Error('invalid extension message reply');
+        if (p.method === 'extensions.uninstall' && (!object(result) || result.uninstalled !== true)) throw new Error('invalid uninstall result');
         if (p.method === 'downloads.list') {
           if (!Array.isArray(result) || result.some((d) => !object(d) || (d.tabId !== undefined && !nativeId(d.tabId)))) throw new Error('invalid extension downloads');
           result = result.map((d) => ({ ...d, ...(d.tabId === undefined ? {} : { tabId: this.tabId(c, d.tabId) }), browserId: c.info.id }));

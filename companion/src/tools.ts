@@ -6,7 +6,7 @@ import { policies, defaultPolicy, setDefaultPolicy, setPolicy, forgetTab, type P
 import { saveArtifact } from './artifacts.ts';
 import { writeFileSync } from 'node:fs';
 import type { Download } from './cdp.ts';
-import { isNewTab } from '../../shared/protocol.ts';
+import { isNewTab, isExtensionId, type ExtensionInfo, type ReqMethod } from '../../shared/protocol.ts';
 
 export function registerBrowserTools(ctx: Ctx) {
   const { sessions, page, capture, registry } = ctx;
@@ -80,6 +80,34 @@ export function registerBrowserTools(ctx: Ctx) {
     const list = onlyUsable === false ? tabs : tabs.filter((t) => t.shared);
     if (!list.length) return onlyUsable === false ? 'No tabs.' : 'No usable tabs. Ask the user to share a tab in the extension dashboard, or launch the development browser.';
     return list.map((t) => `[${t.id}] ${t.mode}${t.browser === 'firefox' ? ':firefox' : ''}${t.context ? ':' + t.context : ''}${owner(t.id)} ${t.shared ? 'shared' : 'not shared'} (${t.browserName ?? t.mode}${t.browserId ? ', browserId ' + t.browserId : ''})${isNewTab(t.url) ? ' (new tab: navigate to a website)' : t.unsupported ? ` (unsupported: ${t.unsupported})` : ''}${t.windowId !== undefined ? ` (window ${t.windowId})` : ''}${t.attached ? ' debugging' : ''} — ${t.title} — ${t.url}`).join('\n');
+  });
+
+  tool(ctx, 'browser_extensions', 'Other installed extensions in a connected Chrome/Chromium or Firefox browser (extension mode only). list/info show name, version, enabled state, permissions and options page; enable/disable change the enabled state; uninstall asks the browser to remove one and the user must confirm in the browser; open opens the extension\'s options page in a tab; message sends one JSON message with runtime.sendMessage, which only reaches extensions that list Browspark in externally_connectable. Off until the user enables "Other extensions" in the Browspark dashboard. Browspark itself cannot be managed. Extension storage cannot be read. Extension pages are automatable only when the user allows it, in Chromium, for the options tab opened here.', {
+    action: z.enum(['list', 'info', 'enable', 'disable', 'uninstall', 'open', 'message']).default('list'),
+    extensionId: z.string().min(1).optional().describe('Extension id from list; required for every action except list'),
+    message: z.unknown().optional().describe('message: JSON-serializable payload (max 1 MB)'),
+    browserId: z.string().min(1).optional().describe('Extension browser ID from browser_status when several are connected'),
+  }, async ({ action, extensionId, message, browserId }) => {
+    if (!sessions.bridge.connected) throw new Error('Extension not connected. Managing other extensions needs the Browspark extension; call browser_status.');
+    const client = ctx.client.name;
+    const call = <T>(method: ReqMethod, params: Record<string, unknown>, timeoutMs?: number) => sessions.bridge.request<T>(method, { ...params, client }, timeoutMs, browserId);
+    if (action === 'list') {
+      const list = await call<ExtensionInfo[]>('extensions.list', {});
+      return list.map((e) => ({ id: e.id, name: e.name, version: e.version, enabled: e.enabled, type: e.type, optionsUrl: e.optionsUrl, ...(e.self && { self: true }) }));
+    }
+    if (!extensionId) throw new Error(`extensionId is required for ${action}; call browser_extensions with action "list".`);
+    if (!isExtensionId(extensionId)) throw new Error(`"${extensionId}" is not an extension id; call browser_extensions with action "list".`);
+    if (action === 'info') return call('extensions.info', { id: extensionId });
+    if (action === 'enable' || action === 'disable') return call('extensions.setEnabled', { id: extensionId, enabled: action === 'enable' });
+    if (action === 'uninstall') return call('extensions.uninstall', { id: extensionId }, 120_000);
+    if (action === 'message') {
+      if (message === undefined) throw new Error('message is required for the message action');
+      return call('extensions.message', { id: extensionId, message });
+    }
+    const r = await call<{ id: number; url: string; name: string; automatable: boolean }>('extensions.options', { id: extensionId });
+    sessions.bridge.invalidateTabs(sessions.bridge.connectionForTab(r.id)?.id);
+    ctx.client.ownedTabs.add(r.id);
+    return `Opened the options page of ${r.name} in tab ${r.id} (${r.url}). ${r.automatable ? 'The tab is shared; drive it with the browser_* tools.' : 'It cannot be automated: the user has not enabled "Share options pages the agent opens" in the Browspark dashboard, or this browser does not support it.'}`;
   });
 
   tool(ctx, 'browser_navigate', 'Navigate a tab: goto a URL, reload, back, or forward. Waits for the load event.', {

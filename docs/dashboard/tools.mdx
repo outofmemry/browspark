@@ -3,10 +3,10 @@ title: "Tools page"
 description: "Every tool the companion exposes, with a switch to turn it off."
 ---
 
-The Tools page lists the companion's tool catalog grouped into **Browser automation** (`browser_*`) and **Developer tools** (`devtools_*`). Each row has the tool name, an expandable description (the same text the agent sees) and a switch.
+The Tools page lists the companion's tool catalog grouped by area: **Browser automation** (`browser_*`) first, then developer tool groups such as Console, Network, Elements and Performance & memory. Each group header shows how many of its tools are on, with **Enable all** or **Disable all** for that group. Each row has the tool name, an expandable description (the same text the agent sees) and a switch.
 
 - **Search** filters by name or description.
-- **All / On / Off** segments narrow the list.
+- **All / Enabled / Disabled** segments narrow the list.
 - **Enable all** and **Disable all** act on every listed tool; with a search or filter active they become **Enable matching** and **Disable matching**.
 
 Switching a tool off takes effect on the agent's next call, without restarting anything. Calls targeting this profile's tabs use this dashboard's switches. Calls spanning browsers and calls in developer sessions use the combined disabled list from all connected dashboards. The agent receives a message telling it the tool is off and to ask you to enable it. Details and the persistence rules are in [Tool policy](/concepts/tool-policy).

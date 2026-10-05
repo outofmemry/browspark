@@ -49,6 +49,18 @@ ${rows.join('\n')}
 | devtools_lighthouse | ❌ developer mode only | ✅ |
 | devtools_cdp (raw commands) | ❌ developer mode only | ✅ |
 | Browser-wide operations (Target, Browser, Storage domains) | ${extCaps.domains.Target === 'supported' ? '✅' : '❌ not exposed to extensions'} | ✅ |
+
+## Other extensions (browser_extensions)
+
+| Capability | Chromium extension | Firefox / Zen extension |
+|---|---|---|
+| list, info, enable, disable | ✅ needs the \`management\` permission and user consent | ✅ |
+| uninstall | ✅ the browser asks the user to confirm | ✅ the browser asks the user to confirm |
+| message (\`runtime.sendMessage\`) | ✅ target must accept Browspark in \`externally_connectable\` | ✅ same rule |
+| open options page | ✅ | ✅ |
+| automate the options page | ⚠️ only when the user shares options pages; the browser may still refuse the debugger | ❌ HTTP(S) pages only |
+| read another extension's storage | ❌ | ❌ |
+| \`chrome://extensions\`, store and add-on pages | ❌ always blocked | ❌ always blocked |
 `;
   writeFileSync(join(ROOT, 'docs/reference/capability-matrix.mdx'), `---\ntitle: "Capability matrix"\ndescription: "Which DevTools Protocol domains work in extension mode versus developer mode, probed live."\n---\n\n` + md.replace(/^# Capability matrix\n\n/, '').replace('`bun companion/test/capabilities.ts`', '`bun run capabilities`'));
   console.log(md);
