@@ -93,3 +93,50 @@ export function unsupportedReason(url: string, engine: 'chromium' | 'firefox' = 
   if (/^https:\/\/chrome(web)?store\.google\.com/.test(url)) return 'Chrome Web Store';
   return undefined;
 }
+
+// Extension updates: a separate WebSocket at /update on the companion port. It never depends on PROTOCOL_VERSION,
+// so an extension too old for the bridge handshake can still ask a newer companion to install the current release.
+export const UPDATE_PATH = '/update';
+export type UpdateEngine = 'chromium' | 'firefox';
+/** Extension -> companion. `id` is chrome.runtime.id; it identifies an unpacked Chromium folder by its path hash. */
+export type UpdateRequest =
+  | { type: 'check'; engine: UpdateEngine; id: string; version: string; force?: boolean }
+  | { type: 'install'; engine: UpdateEngine; id: string; version: string; path?: string };
+export interface UpdateTarget { path: string; display: string; kind: 'folder' | 'zip' }
+/** Companion -> extension answer to `check`. */
+export interface UpdateStatus {
+  type: 'status';
+  current: string;
+  companion: string;
+  latest?: string;
+  available: boolean;
+  releaseUrl?: string;
+  notes?: string;
+  publishedAt?: string;
+  /** Where `install` writes; absent when the folder is unknown or ambiguous. */
+  target?: UpdateTarget;
+  /** Several matching Firefox folders: the user picks one. */
+  candidates?: UpdateTarget[];
+  installable: boolean;
+  /** Why `installable` is false: not-found, ambiguous, disabled, no-asset, offline. */
+  reason?: 'not-found' | 'ambiguous' | 'disabled' | 'no-asset' | 'offline';
+  error?: string;
+  checkedAt: number;
+}
+export type UpdateEvent =
+  | UpdateStatus
+  | { type: 'progress'; stage: 'download' | 'verify' | 'install'; received?: number; total?: number }
+  | { type: 'done'; version: string; target: UpdateTarget }
+  | { type: 'error'; message: string };
+const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+export const isVersion = (v: unknown): v is string => typeof v === 'string' && v.length <= 64 && SEMVER.test(v);
+/** Semantic version order; a prerelease sorts before its release. */
+export function compareVersions(a: string, b: string): number {
+  const parse = (v: string) => { const [core, pre] = v.replace(/^v/, '').split('+')[0]!.split(/-(.*)/s); return { nums: core!.split('.').map(Number), pre }; };
+  const x = parse(a), y = parse(b);
+  for (let i = 0; i < 3; i++) if ((x.nums[i] ?? 0) !== (y.nums[i] ?? 0)) return (x.nums[i] ?? 0) - (y.nums[i] ?? 0);
+  if (x.pre === y.pre) return 0;
+  if (x.pre === undefined) return 1;
+  if (y.pre === undefined) return -1;
+  return x.pre < y.pre ? -1 : 1;
+}
