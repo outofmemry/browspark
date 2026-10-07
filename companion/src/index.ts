@@ -15,7 +15,7 @@ import { Capture } from './devtools/capture.ts';
 import { installLiveView } from './live.ts';
 import { installConnectionGraph } from './graph.ts';
 import { updaterFromEnv } from './updates.ts';
-import { applyIdentity, identifyProcess, peerPid, stopAllAgents } from './agents.ts';
+import { applyIdentity, identifyProcess, peerPid, requestStopAll } from './agents.ts';
 import { type Ctx, type ClientState, clients, toolCatalog, setDisabledTools, disabledTools, devGate, combinedPolicy } from './context.ts';
 import { version as VERSION } from '../../package.json';
 import type { ToolPolicy } from '../../shared/protocol.ts';
@@ -55,8 +55,9 @@ const updatePolicy = () => {
 bridge.on('connected', (c: BridgeConnection) => { updatePolicy(); console.error(`browspark: extension connected: ${c.id} (${c.browser})`); sendCatalog(c.id); });
 bridge.on('tools.policy', (p: ToolPolicy, c: BridgeConnection) => { updatePolicy(); if (!p.haveCatalog) sendCatalog(c.id); });
 bridge.on('agents.stop', (c: BridgeConnection) => {
-  console.error(`browspark: ${c.id} asked to stop all agents`);
-  void stopAllAgents().then(({ killed, disconnected }) => console.error(`browspark: stopped ${killed.length ? killed.join(', ') : 'no agent processes'}${disconnected.length ? `; disconnected ${disconnected.join(', ')}` : ''}`));
+  // Any extension can send this event, so nothing is stopped until the user confirms it in a system dialog.
+  console.error(`browspark: ${c.id} asked to stop all agents; waiting for confirmation`);
+  void requestStopAll().then((r) => console.error(r ? `browspark: stopped ${r.killed.length ? r.killed.join(', ') : 'no agent processes'}${r.disconnected.length ? `; disconnected ${r.disconnected.join(', ')}` : ''}` : 'browspark: stop all agents was not confirmed'));
 });
 bridge.on('disconnected', (c: BridgeConnection) => { updatePolicy(); console.error(`browspark: extension disconnected: ${c.id}`); });
 

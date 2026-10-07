@@ -161,7 +161,8 @@ export class Bridge extends EventEmitter {
   /**
    * Settle this connection's pending requests or dispatch extension events, translating tab IDs to public IDs.
    * Response validation failures reject the pending request; event validation failures throw to the socket handler.
-   * Forward `agents.stop` with the requesting browser's connection information.
+   * Forward `agents.stop` with the requesting browser's connection information; it is only a request, which the
+   * listener carries out after the user confirms it outside the browser.
    */
   private handle(c: Connection, msg: Msg) {
     if (isRes(msg)) {
@@ -207,6 +208,7 @@ export class Bridge extends EventEmitter {
         break;
       }
       case 'ping': break;
+      // Only a request: the handler asks the user to confirm outside the browser before anything is stopped.
       case 'agents.stop': this.emit('agents.stop', c.info); break;
       case 'tools.policy': {
         const p = msg.params;

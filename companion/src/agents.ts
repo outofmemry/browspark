@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { clients, type ClientState } from './context.ts';
 
@@ -141,10 +142,21 @@ export function applyIdentity(client: ClientState, id: AgentIdentity | undefined
   else if (!reported.includes(product)) client.process = { ...id, app: '', pid: 0 };
 }
 
+/** When this process instance started: the PID plus this tells a reused PID apart. Undefined if it can't be read. */
+async function startTime(pid: number): Promise<string | undefined> {
+  if (process.platform === 'linux') {
+    // Field 22 (starttime, in clock ticks since boot); the fields before it follow the parenthesised command name.
+    try { const stat = await readFile(`/proc/${pid}/stat`, 'utf8'); return stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19] || undefined; } catch { return undefined; }
+  }
+  try { return (await run('ps', ['-o', 'lstart=', '-p', String(pid)], { timeout: 2000 })).stdout.trim() || undefined; } catch { return undefined; }
+}
+
 /**
  * Request termination of identified non-GUI agents, or their relay peers when no such agent is identified,
- * and await each available disconnect callback. Each eligible PID is targeted once; this process is excluded.
- * Send SIGTERM and schedule a SIGKILL check after 3 seconds without waiting for process exit.
+ * and await each available disconnect callback. A pending identity lookup is applied first; a failed one leaves
+ * the client disconnect-only. Each eligible PID is targeted once; this process is excluded.
+ * Send SIGTERM without waiting for process exit; after 3 seconds, send SIGKILL only if the process start time is
+ * unchanged (the same instance), and never when it could not be read.
  * `killed` lists names with PIDs successfully sent SIGTERM; `disconnected` lists names for which no new
  * signal attempt was made, including duplicate targets. Neither list confirms exit or disconnection.
  * Signal errors and rejected disconnect promises are ignored; synchronous disconnect errors reject this call.
@@ -153,14 +165,51 @@ export async function stopAllAgents(): Promise<{ killed: string[]; disconnected:
   const killed: string[] = [], disconnected: string[] = [];
   const targets = new Set<number>();
   for (const c of [...clients.values()]) {
+    // A client still in its handshake may have a lookup in flight; a failed lookup leaves it disconnect-only.
+    if (!c.process && c.identify) applyIdentity(c, await c.identify.catch(() => undefined));
     const p = c.process;
     const pid = p && p.app && !p.gui ? p.pid : p?.relay ? p.peer : 0;
     if (pid > 1 && pid !== process.pid && !targets.has(pid)) {
       targets.add(pid);
+      const started = await startTime(pid);
       try { process.kill(pid, 'SIGTERM'); killed.push(`${c.name} (pid ${pid})`); } catch { /* already gone */ }
-      setTimeout(() => { try { process.kill(pid, 0); process.kill(pid, 'SIGKILL'); } catch { /* exited */ } }, 3000).unref();
+      // Escalate only if the same process instance is still there; a PID reused in the meantime is left alone.
+      if (started) setTimeout(() => { void startTime(pid).then((now) => { if (now === started) try { process.kill(pid, 'SIGKILL'); } catch { /* exited */ } }); }, 3000).unref();
     } else disconnected.push(c.name);
     await c.disconnect?.().catch(() => {});
   }
   return { killed, disconnected };
+}
+
+/**
+ * The bridge can't tell Browspark from any other extension (or a local process) that connects, so a stop request is
+ * authorized out of band: a native system dialog that no web page or extension can answer. Without one, refuse.
+ */
+export async function confirmWithUser(count: number): Promise<boolean> {
+  const text = `Stop ${count === 1 ? 'the 1 agent' : `all ${count} agents`} connected to Browspark? Agent processes, including background jobs, will be ended. Desktop apps are only disconnected.`;
+  if (process.platform === 'darwin') {
+    try {
+      const { stdout } = await run('osascript', ['-e', `display dialog ${JSON.stringify(text)} with title "Browspark" buttons {"Cancel", "Stop agents"} default button "Cancel" cancel button "Cancel" with icon caution giving up after 60`], { timeout: 70_000 });
+      return /button returned:Stop agents/.test(stdout) && !/gave up:true/.test(stdout);
+    } catch { return false; }
+  }
+  if (process.platform === 'linux') {
+    const dialogs: [string, string[]][] = [['zenity', ['--question', '--title=Browspark', `--text=${text}`, '--ok-label=Stop agents', '--timeout=60']], ['kdialog', ['--title', 'Browspark', '--warningcontinuecancel', text]]];
+    for (const [cmd, args] of dialogs) {
+      try { await run(cmd, args, { timeout: 70_000 }); return true; } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') return false; }
+    }
+  }
+  return false;
+}
+
+let stopPending = false;
+/** Handle a stop request from an extension: one confirmation at a time, nothing ends unless the user confirms it. */
+export async function requestStopAll(confirm: (count: number) => Promise<boolean> = confirmWithUser): Promise<{ killed: string[]; disconnected: string[] } | undefined> {
+  if (stopPending) return undefined;
+  stopPending = true;
+  try {
+    const count = [...clients.values()].filter((c) => c.initialized).length;
+    if (!count || !(await confirm(count))) return undefined;
+    return await stopAllAgents();
+  } finally { stopPending = false; }
 }
