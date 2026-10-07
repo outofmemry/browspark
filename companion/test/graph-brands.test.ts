@@ -3,6 +3,38 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { detectBrowserName, graphBrand, isKnownLabel, labelOptions, resolveBrowserName } from '../../extension/shared/src/brands.ts';
 
+for (const [name, aliases, logo, darkLogo] of [
+  ['Claude Code', ['CLAUDECODE', 'claude_code/2.0', 'claude code cli'], 'claude.png'],
+  ['OpenClaw', ['OPEN_CLAW', 'open-claw/1.0', 'open claw client'], 'openclaw.svg'],
+  ['Cline', ['CLINE', 'cline/1.0', 'cline_client'], 'cline.png'],
+  ['Kilo Code', ['KILOCODE', 'kilo_code/1.0', 'kilo agent'], 'kilo.svg'],
+  ['Pi', ['PI', 'pi_coding_agent/1.0', 'pi coding agent'], 'pi.svg', 'pi-dark.svg'],
+  ['Command Code', ['COMMANDCODE', 'command_code/1.0', 'command code client'], 'command-code.png'],
+] as const) test(`${name} aliases retain the product label and correct theme assets`, () => {
+  for (const alias of aliases) {
+    const brand = graphBrand(alias, 'agent');
+    assert.equal(brand.name, name, alias);
+    assert.equal(brand.label, name, alias);
+    assert.equal(brand.src, `assets/clients/${logo}`, alias);
+    assert.equal(brand.darkSrc, darkLogo ? `assets/clients/${darkLogo}` : undefined, alias);
+    for (const src of [brand.src, brand.darkSrc].filter(Boolean)) {
+      assert.ok(existsSync(new URL(`../../extension/shared/${src}`, import.meta.url)), `${src} is bundled`);
+    }
+  }
+});
+
+test('new agent brands require a product-name boundary and never match browser names', () => {
+  for (const name of ['ClaudeCoder', 'OpenClawfish', 'Clinewise', 'Kilocodebase', 'Pilot', 'CommandCoder', 'my-openclaw', 'my-cline', 'my-command-code']) {
+    assert.equal(graphBrand(name, 'agent').label, 'Other agent', name);
+    assert.equal(graphBrand(name, 'agent').src, 'assets/clients/other-agent.svg', name);
+  }
+  for (const name of ['Claude Code', 'OpenClaw', 'Cline', 'Kilo Code', 'Pi', 'Command Code']) {
+    assert.equal(graphBrand(name, 'browser', 'chromium').label, 'Unknown Chromium', name);
+    assert.equal(graphBrand(name, 'browser', 'firefox').label, 'Unknown Firefox', name);
+  }
+  assert.equal(graphBrand('Claude', 'agent').name, 'Claude', 'desktop Claude remains distinct from Claude Code');
+});
+
 test('graph brands resolve reported names and use explicit fallbacks for unknown clients and browser engines', () => {
   const agents = ['Claude', 'Claude Code', 'Codex', 'Cursor', 'OpenCode', 'Antigravity', 'Muse Code', 'Hermes', 'OpenClaw', 'Cline', 'Kilo Code', 'Pi', 'Command Code'];
   const browsers = ['Chrome', 'Chromium', 'Edge', 'Brave', 'Helium', 'Vivaldi', 'Arc', 'Dia', 'Firefox', 'Tor', 'Zen'];
