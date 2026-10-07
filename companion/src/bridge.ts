@@ -202,6 +202,7 @@ export class Bridge extends EventEmitter {
         break;
       }
       case 'ping': break;
+      // Only a request: the handler asks the user to confirm outside the browser before anything is stopped.
       case 'agents.stop': this.emit('agents.stop', c.info); break;
       case 'tools.policy': {
         const p = msg.params;

@@ -5,7 +5,7 @@ import { mkdtempSync, symlinkSync } from 'node:fs';
 import { createServer, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { applyIdentity, identifyProcess, peerPid, stopAllAgents } from '../src/agents.ts';
+import { applyIdentity, identifyProcess, peerPid, requestStopAll, stopAllAgents } from '../src/agents.ts';
 import { clients, type ClientState } from '../src/context.ts';
 
 const unix = process.platform !== 'win32';
@@ -63,5 +63,36 @@ describe.skipIf(!unix)('agent processes', () => {
       for (let i = 0; i < 50 && !exited(child.pid!); i++) await new Promise((r) => setTimeout(r, 20));
       assert.ok(exited(child.pid!) || child.signalCode === 'SIGTERM');
     } finally { clients.delete('agents-test'); child.kill('SIGKILL'); server.close(); for (const s of sockets) s.destroy(); }
+  });
+  test('a stop request ends nothing unless the user confirms it', async () => {
+    const child = spawn(fake('opencode', '/bin/sleep'), ['30'], { stdio: 'ignore' });
+    const client: ClientState = { id: 'agents-confirm', name: 'cli', ownedTabs: new Set(), initialized: true };
+    try {
+      applyIdentity(client, await identifyProcess(child.pid!));
+      clients.set(client.id, client);
+      let asked = 0;
+      assert.equal(await requestStopAll(async (n) => { asked = n; return false; }), undefined);
+      assert.equal(asked, 1);
+      await new Promise((r) => setTimeout(r, 100));
+      assert.ok(!exited(child.pid!), 'declined: the agent keeps running');
+      const r = await requestStopAll(async () => true);
+      assert.deepEqual(r?.killed, [`OpenCode (pid ${child.pid})`]);
+    } finally { clients.delete(client.id); child.kill('SIGKILL'); }
+  });
+  test('Stop all agents waits for a pending lookup and survives a failed one', async () => {
+    const child = spawn(fake('opencode', '/bin/sleep'), ['30'], { stdio: 'ignore' });
+    // Still in its handshake: the lookup has not been applied yet.
+    const pending: ClientState = { id: 'agents-pending', name: 'http', ownedTabs: new Set(), identify: identifyProcess(child.pid!) };
+    const failed: ClientState = { id: 'agents-failed', name: 'http', ownedTabs: new Set(), identify: Promise.reject(new Error('lsof failed')) };
+    failed.identify!.catch(() => {});
+    let closed = false;
+    failed.disconnect = async () => { closed = true; };
+    try {
+      clients.set(pending.id, pending); clients.set(failed.id, failed);
+      const r = await stopAllAgents();
+      assert.deepEqual(r.killed, [`OpenCode (pid ${child.pid})`]);
+      assert.deepEqual(r.disconnected, ['http']);
+      assert.ok(closed);
+    } finally { clients.delete(pending.id); clients.delete(failed.id); child.kill('SIGKILL'); }
   });
 });
