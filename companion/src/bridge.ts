@@ -202,6 +202,8 @@ export class Bridge extends EventEmitter {
         break;
       }
       case 'ping': break;
+      // Only a request: the handler asks the user to confirm outside the browser before anything is stopped.
+      case 'agents.stop': this.emit('agents.stop', c.info); break;
       case 'tools.policy': {
         const p = msg.params;
         if (!object(p) || !Array.isArray(p.disabled) || p.disabled.some((n) => typeof n !== 'string') || (p.devMode !== undefined && !['auto', 'always', 'never'].includes(p.devMode)) || (p.overlay !== undefined && typeof p.overlay !== 'boolean') || (p.haveCatalog !== undefined && typeof p.haveCatalog !== 'boolean') || (p.graph !== undefined && typeof p.graph !== 'boolean')) throw new Error('invalid tool policy');

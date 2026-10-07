@@ -15,6 +15,7 @@ import { Capture } from './devtools/capture.ts';
 import { installLiveView } from './live.ts';
 import { installConnectionGraph } from './graph.ts';
 import { updaterFromEnv } from './updates.ts';
+import { applyIdentity, identifyProcess, peerPid, requestStopAll } from './agents.ts';
 import { type Ctx, type ClientState, clients, toolCatalog, setDisabledTools, disabledTools, devGate, combinedPolicy } from './context.ts';
 import { version as VERSION } from '../../package.json';
 import type { ToolPolicy } from '../../shared/protocol.ts';
@@ -53,20 +54,34 @@ const updatePolicy = () => {
 };
 bridge.on('connected', (c: BridgeConnection) => { updatePolicy(); console.error(`browspark: extension connected: ${c.id} (${c.browser})`); sendCatalog(c.id); });
 bridge.on('tools.policy', (p: ToolPolicy, c: BridgeConnection) => { updatePolicy(); if (!p.haveCatalog) sendCatalog(c.id); });
+bridge.on('agents.stop', (c: BridgeConnection) => {
+  // Any extension can send this event, so nothing is stopped until the user confirms it in a system dialog.
+  console.error(`browspark: ${c.id} asked to stop all agents; waiting for confirmation`);
+  void requestStopAll().then((r) => console.error(r ? `browspark: stopped ${r.killed.length ? r.killed.join(', ') : 'no agent processes'}${r.disconnected.length ? `; disconnected ${r.disconnected.join(', ')}` : ''}` : 'browspark: stop all agents was not confirmed'));
+});
 bridge.on('disconnected', (c: BridgeConnection) => { updatePolicy(); console.error(`browspark: extension disconnected: ${c.id}`); });
 
 const sessions = new Sessions(bridge);
 const page = new Page(sessions), capture = new Capture(sessions);
 /** Each MCP transport gets its own McpServer; browser state, capture buffers, and the tool registry are shared. */
 let clientSeq = 0;
+const serverClients = new WeakMap<McpServer, ClientState>();
 function buildServer(label: string): McpServer {
   const server = new McpServer({ name: 'browspark', version: VERSION }, { instructions: 'Prefer background-tab interaction. Keep the assigned tabId and pass it to subsequent tools; do not activate tabs or focus windows just to interact. Work in background is ON by default in the extension. Never bypass it with window.focus(), popups, or raw protocol commands. Verify input effects with a fresh snapshot. If an operation cannot work in the background, ask the user to select the agent tab or temporarily disable Settings → Work in background. Check page state before retrying to avoid duplicate actions.' });
   const client: ClientState = { id: `c${++clientSeq}`, name: label, ownedTabs: new Set() };
   clients.set(client.id, client);
+  serverClients.set(server, client);
   const ctx: Ctx = { server, sessions, page, capture, client, registry: new Map() };
   for (const reg of [registerBrowserTools, registerSessionTools, registerConsoleTools, registerNetworkTools, registerSourcesTools, registerDebuggerTools, registerElementsTools, registerProfilingTools, registerApplicationTools, registerEnvironmentTools, registerLighthouseTools, registerRecorderTools, registerAuditTools]) reg(ctx);
   // Name the agent after what the MCP client calls itself (opencode, claude-code, gemini…); a relay passes the real name through.
-  server.server.oninitialized = () => { const v = server.server.getClientVersion(); if (v?.name) client.name = v.name.replace(/^relay:/, ''); client.initialized = true; console.error(`browspark: agent connected: ${client.name}`); };
+  // Generic names (cli, mcp) are replaced by the product found in the client's process tree before the graph shows it.
+  server.server.oninitialized = () => {
+    const v = server.server.getClientVersion(); if (v?.name) client.name = v.name.replace(/^relay:/, '');
+    void (client.identify ?? Promise.resolve(undefined)).then((id) => applyIdentity(client, id), () => {}).finally(() => {
+      client.initialized = true;
+      console.error(`browspark: agent connected: ${client.name}${client.process?.app ? ` (pid ${client.process.pid})` : ''}`);
+    });
+  };
   server.server.onclose = () => { clients.delete(client.id); void capture.release(client.id).catch((e) => console.error(`browspark: inspection cleanup failed for ${client.name}: ${e.message}`)); console.error(`browspark: agent disconnected: ${client.name}`); };
   return server;
 }
@@ -95,6 +110,11 @@ bridge.mcpHandler = async (req, res) => {
     t.onclose = () => { if (t.sessionId) { httpSessions.delete(t.sessionId); clearTimeout(httpStreams.get(t.sessionId)?.gone); httpStreams.delete(t.sessionId); } };
     const server = firstHttpServer ?? buildServer('http');
     firstHttpServer = undefined;
+    const client = serverClients.get(server)!;
+    // Look the peer up now, while its socket is certainly open.
+    const remotePort = req.socket.remotePort;
+    client.identify = peerPid(remotePort ?? 0).then((pid) => pid ? identifyProcess(pid) : undefined);
+    client.disconnect = () => t.close();
     await server.connect(t);
     transport = t;
   }
@@ -119,7 +139,11 @@ process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);
 if (!httpOnly) process.stdin.on('close', shutdown);
 
 if (owner) {
-  if (!httpOnly) await buildServer('stdio').connect(new StdioServerTransport());
+  if (!httpOnly) {
+    const server = buildServer('stdio');
+    serverClients.get(server)!.identify = identifyProcess(process.ppid);
+    await server.connect(new StdioServerTransport());
+  }
   console.error(`browspark: ready on ws://127.0.0.1:${bridge.port}; MCP over HTTP at ${upstreamUrl}`);
 } else await relayTo();
 
@@ -139,7 +163,9 @@ async function relayTo() {
       if (await bridge.listen().then(() => true, () => false)) {
         tookOver = true; relayTransport = undefined;
         const [a, b] = InMemoryTransport.createLinkedPair();
-        await buildServer(who()).connect(b);
+        const server = buildServer(who());
+        serverClients.get(server)!.identify = identifyProcess(process.ppid);
+        await server.connect(b);
         await c.connect(a);
         console.error(`browspark: the companion on port ${port} went away; took the port over. Ready on ws://127.0.0.1:${port}`);
         return c;

@@ -59,6 +59,8 @@ The overlay is available in Chromium and Firefox. On Firefox extension tabs the 
 
 Stops access to this profile's tabs, clears its shared list, switches Share everything off and disconnects this extension. Other connected profiles and developer sessions remain available. **Resume** reconnects this profile; share tabs again afterwards. To close developer sessions, ask the agent to use `browser_session` with `action: "close"` and the context name, or `all: true`.
 
+**Stop all agents** ends every agent process connected to the companion's port, including agents that keep running background jobs (an `opencode serve` service or a Hermes gateway, for example). The companion finds each agent from the process that holds its connection; agents launched through `npx`, `bunx`, `uvx` or a shell are traced back to the agent that launched them. Desktop apps such as Claude or Cursor are disconnected rather than closed, and clients that can't be identified are disconnected only. Browsers stay connected. Because any browser extension can reach the companion's port, nothing is stopped until you confirm in a system dialog the companion opens on your computer (macOS, or Linux with `zenity` or `kdialog`; elsewhere the request is refused). If the companion was started by one of the stopped agents over stdio, it exits with that agent, and the next agent you start launches a new one.
+
 ## Appearance
 
 The theme control next to the logo at the top of the sidebar switches between system, light and dark. The choice is stored per browser profile. Every page has full light and dark palettes; screenshots in these docs show both.

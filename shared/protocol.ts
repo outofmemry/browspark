@@ -10,7 +10,8 @@ export interface Evt { event: EvtName; params?: unknown }
 export type Msg = Req | Res | Evt;
 
 export type ReqMethod = 'tabs.list' | 'tabs.create' | 'tabs.close' | 'tabs.activate' | 'tabs.hold' | 'tabs.prepare' | 'window.size' | 'downloads.list' | 'tools.catalog' | 'graph.state' | 'extensions.list' | 'extensions.info' | 'extensions.setEnabled' | 'extensions.uninstall' | 'extensions.options' | 'extensions.message' | 'cdp';
-export type EvtName = 'hello' | 'tabs' | 'cdp.event' | 'detached' | 'ping' | 'tools.policy';
+/** `agents.stop`: the user asked to end every agent process connected to the companion (older companions ignore it). */
+export type EvtName = 'hello' | 'tabs' | 'cdp.event' | 'detached' | 'ping' | 'tools.policy' | 'agents.stop';
 
 /** Other installed extensions, as reported by chrome.management / browser.management. */
 export interface ExtensionInfo {
