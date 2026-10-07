@@ -96,26 +96,6 @@ svg.i { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-widt
 .theme button:hover { color: var(--fg); }
 .theme button.on, .theme button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--border-2); }
 
-.profile-card { margin-bottom: 18px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
-.profile-head { display: flex; align-items: center; gap: 11px; padding: 12px 12px 11px; }
-.profile-logo { display: grid; place-items: center; width: 34px; height: 34px; flex: none; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); }
-.profile-logo picture { display: flex; }
-.profile-img { width: 22px; height: 22px; object-fit: contain; }
-.profile-copy { min-width: 0; }
-.profile-name { overflow: hidden; color: var(--fg); font-size: 13px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
-.profile-meta { overflow: hidden; color: var(--fg-3); font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
-.conn { display: flex; align-items: flex-start; gap: 9px; min-width: 0; padding: 10px 12px; border-top: 1px solid var(--border); background: var(--surface-2); }
-.conn > div { min-width: 0; }
-.conn .dot, .conn .spinner { margin-top: 5px; }
-.conn .spinner { width: 9px; height: 9px; color: var(--fg-2); }
-.conn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fg-3); flex: none; }
-.conn.ok .dot { background: var(--accent); animation: ring 2s ease-out infinite; }
-.conn.pending .dot { background: var(--warn); animation: pulse 1.4s ease-in-out infinite; }
-.conn.bad .dot { background: var(--bad); }
-.conn .l1 { font-size: 12.5px; font-weight: 600; line-height: 1.5; }
-.conn.ok .l1 { color: var(--accent-text); }
-.conn.bad .l1 { color: var(--bad); }
-.conn .l2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--fg-3); font: 11.5px/1.5 var(--mono); overflow-wrap: anywhere; }
 
 .nav-caption { padding: 0 10px 4px; color: var(--fg-3); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
 #nav { display: flex; flex-direction: column; gap: 2px; }
@@ -630,7 +610,7 @@ main { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; scrollb
   .side-top { padding: 0 0 8px; }
   .brand-mark { width: 26px; height: 26px; border-radius: 7px; }
   .brand-name { font-size: 14px; }
-  .profile-card, .nav-caption, .side-foot { display: none; }
+  .nav-caption, .side-foot { display: none; }
   .update-card { margin: 0 0 8px; padding: 8px 10px; }
   #nav { flex-direction: row; gap: 2px; margin: 0 -16px; padding: 0 12px; overflow-x: auto; scrollbar-width: none; }
   #nav::-webkit-scrollbar { display: none; }

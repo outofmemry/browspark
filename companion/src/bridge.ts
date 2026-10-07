@@ -158,6 +158,12 @@ export class Bridge extends EventEmitter {
     });
   }
 
+  /**
+   * Settle this connection's pending requests or dispatch extension events, translating tab IDs to public IDs.
+   * Response validation failures reject the pending request; event validation failures throw to the socket handler.
+   * Forward `agents.stop` with the requesting browser's connection information; it is only a request, which the
+   * listener carries out after the user confirms it outside the browser.
+   */
   private handle(c: Connection, msg: Msg) {
     if (isRes(msg)) {
       const p = this.pending.get(msg.id);
@@ -202,6 +208,8 @@ export class Bridge extends EventEmitter {
         break;
       }
       case 'ping': break;
+      // Only a request: the handler asks the user to confirm outside the browser before anything is stopped.
+      case 'agents.stop': this.emit('agents.stop', c.info); break;
       case 'tools.policy': {
         const p = msg.params;
         if (!object(p) || !Array.isArray(p.disabled) || p.disabled.some((n) => typeof n !== 'string') || (p.devMode !== undefined && !['auto', 'always', 'never'].includes(p.devMode)) || (p.overlay !== undefined && typeof p.overlay !== 'boolean') || (p.haveCatalog !== undefined && typeof p.haveCatalog !== 'boolean') || (p.graph !== undefined && typeof p.graph !== 'boolean')) throw new Error('invalid tool policy');

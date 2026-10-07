@@ -15,6 +15,7 @@ import { Capture } from './devtools/capture.ts';
 import { installLiveView } from './live.ts';
 import { installConnectionGraph } from './graph.ts';
 import { updaterFromEnv } from './updates.ts';
+import { applyIdentity, identifyProcess, peerPid, requestStopAll } from './agents.ts';
 import { type Ctx, type ClientState, clients, toolCatalog, setDisabledTools, disabledTools, devGate, combinedPolicy } from './context.ts';
 import { version as VERSION } from '../../package.json';
 import type { ToolPolicy } from '../../shared/protocol.ts';
@@ -53,20 +54,38 @@ const updatePolicy = () => {
 };
 bridge.on('connected', (c: BridgeConnection) => { updatePolicy(); console.error(`browspark: extension connected: ${c.id} (${c.browser})`); sendCatalog(c.id); });
 bridge.on('tools.policy', (p: ToolPolicy, c: BridgeConnection) => { updatePolicy(); if (!p.haveCatalog) sendCatalog(c.id); });
+bridge.on('agents.stop', (c: BridgeConnection) => {
+  // Any extension can send this event, so nothing is stopped until the user confirms it in a system dialog.
+  console.error(`browspark: ${c.id} asked to stop all agents; waiting for confirmation`);
+  void requestStopAll().then((r) => console.error(r ? `browspark: stopped ${r.killed.length ? r.killed.join(', ') : 'no agent processes'}${r.disconnected.length ? `; disconnected ${r.disconnected.join(', ')}` : ''}` : 'browspark: stop all agents was not confirmed'));
+});
 bridge.on('disconnected', (c: BridgeConnection) => { updatePolicy(); console.error(`browspark: extension disconnected: ${c.id}`); });
 
 const sessions = new Sessions(bridge);
 const page = new Page(sessions), capture = new Capture(sessions);
 /** Each MCP transport gets its own McpServer; browser state, capture buffers, and the tool registry are shared. */
 let clientSeq = 0;
+const serverClients = new WeakMap<McpServer, ClientState>();
+/**
+ * Create an unconnected MCP server and register its client and tools, using `label` until client identification.
+ * Initialization waits for any process lookup to settle; closing removes the client and starts inspection cleanup.
+ */
 function buildServer(label: string): McpServer {
   const server = new McpServer({ name: 'browspark', version: VERSION }, { instructions: 'Prefer background-tab interaction. Keep the assigned tabId and pass it to subsequent tools; do not activate tabs or focus windows just to interact. Work in background is ON by default in the extension. Never bypass it with window.focus(), popups, or raw protocol commands. Verify input effects with a fresh snapshot. If an operation cannot work in the background, ask the user to select the agent tab or temporarily disable Settings → Work in background. Check page state before retrying to avoid duplicate actions.' });
   const client: ClientState = { id: `c${++clientSeq}`, name: label, ownedTabs: new Set() };
   clients.set(client.id, client);
+  serverClients.set(server, client);
   const ctx: Ctx = { server, sessions, page, capture, client, registry: new Map() };
   for (const reg of [registerBrowserTools, registerSessionTools, registerConsoleTools, registerNetworkTools, registerSourcesTools, registerDebuggerTools, registerElementsTools, registerProfilingTools, registerApplicationTools, registerEnvironmentTools, registerLighthouseTools, registerRecorderTools, registerAuditTools]) reg(ctx);
   // Name the agent after what the MCP client calls itself (opencode, claude-code, gemini…); a relay passes the real name through.
-  server.server.oninitialized = () => { const v = server.server.getClientVersion(); if (v?.name) client.name = v.name.replace(/^relay:/, ''); client.initialized = true; console.error(`browspark: agent connected: ${client.name}`); };
+  // Generic names (cli, mcp) are replaced by the product found in the client's process tree before the graph shows it.
+  server.server.oninitialized = () => {
+    const v = server.server.getClientVersion(); if (v?.name) client.name = v.name.replace(/^relay:/, '');
+    void (client.identify ?? Promise.resolve(undefined)).then((id) => applyIdentity(client, id), () => {}).finally(() => {
+      client.initialized = true;
+      console.error(`browspark: agent connected: ${client.name}${client.process?.app ? ` (pid ${client.process.pid})` : ''}`);
+    });
+  };
   server.server.onclose = () => { clients.delete(client.id); void capture.release(client.id).catch((e) => console.error(`browspark: inspection cleanup failed for ${client.name}: ${e.message}`)); console.error(`browspark: agent disconnected: ${client.name}`); };
   return server;
 }
@@ -86,6 +105,11 @@ const httpStreams = new Map<string, { open: number; gone?: ReturnType<typeof set
 const HTTP_STREAM_GRACE_MS = Number(process.env.BROWSPARK_HTTP_GRACE_MS ?? 60_000);
 // Populate the extension's catalog before any agent connects; reuse this server for the first HTTP client.
 let firstHttpServer = owner && httpOnly ? buildServer('http') : undefined;
+/**
+ * Route MCP HTTP requests. Without a known session, create a transport on POST or reply 400 for other methods.
+ * Start peer identification for new clients and expire inactive sessions after their event stream has closed.
+ * Connection and request-handling rejections propagate to the bridge's HTTP error handler.
+ */
 bridge.mcpHandler = async (req, res) => {
   const sid = req.headers['mcp-session-id'];
   let transport = typeof sid === 'string' ? httpSessions.get(sid) : undefined;
@@ -95,6 +119,11 @@ bridge.mcpHandler = async (req, res) => {
     t.onclose = () => { if (t.sessionId) { httpSessions.delete(t.sessionId); clearTimeout(httpStreams.get(t.sessionId)?.gone); httpStreams.delete(t.sessionId); } };
     const server = firstHttpServer ?? buildServer('http');
     firstHttpServer = undefined;
+    const client = serverClients.get(server)!;
+    // Look the peer up now, while its socket is certainly open.
+    const remotePort = req.socket.remotePort;
+    client.identify = peerPid(remotePort ?? 0).then((pid) => pid ? identifyProcess(pid) : undefined);
+    client.disconnect = () => t.close();
     await server.connect(t);
     transport = t;
   }
@@ -119,15 +148,28 @@ process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);
 if (!httpOnly) process.stdin.on('close', shutdown);
 
 if (owner) {
-  if (!httpOnly) await buildServer('stdio').connect(new StdioServerTransport());
+  if (!httpOnly) {
+    const server = buildServer('stdio');
+    serverClients.get(server)!.identify = identifyProcess(process.ppid);
+    await server.connect(new StdioServerTransport());
+  }
   console.error(`browspark: ready on ws://127.0.0.1:${bridge.port}; MCP over HTTP at ${upstreamUrl}`);
 } else await relayTo();
 
+/**
+ * Attach a stdio relay that forwards tool requests to the existing companion and can take over its port.
+ * Resolve when the stdio transport connects; upstream connection failures surface through tool requests.
+ * Stdio connection failures reject this call.
+ */
 async function relayTo() {
   const relay = new Server({ name: 'browspark', version: VERSION }, { capabilities: { tools: {} } });
   // Connect upstream only once we know who the downstream client is, so the owner can name this agent correctly.
   const who = () => relay.getClientVersion()?.name ?? 'relay';
   let upstream: Promise<Client> | undefined, tookOver = false;
+  /**
+   * Return an upstream client, taking over the port locally if the companion is unavailable and the port is free.
+   * Try up to 10 times with 500 ms pauses; throw if exhausted or if an in-process connection fails after takeover.
+   */
   const connect = async (): Promise<Client> => {
     let last: unknown;
     for (let attempt = 0; attempt < 10; attempt++) {
@@ -139,7 +181,9 @@ async function relayTo() {
       if (await bridge.listen().then(() => true, () => false)) {
         tookOver = true; relayTransport = undefined;
         const [a, b] = InMemoryTransport.createLinkedPair();
-        await buildServer(who()).connect(b);
+        const server = buildServer(who());
+        serverClients.get(server)!.identify = identifyProcess(process.ppid);
+        await server.connect(b);
         await c.connect(a);
         console.error(`browspark: the companion on port ${port} went away; took the port over. Ready on ws://127.0.0.1:${port}`);
         return c;

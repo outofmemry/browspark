@@ -3,8 +3,40 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { detectBrowserName, graphBrand, isKnownLabel, labelOptions, resolveBrowserName } from '../../extension/shared/src/brands.ts';
 
+for (const [name, aliases, logo, darkLogo] of [
+  ['Claude Code', ['CLAUDECODE', 'claude_code/2.0', 'claude code cli'], 'claude.png'],
+  ['OpenClaw', ['OPEN_CLAW', 'open-claw/1.0', 'open claw client'], 'openclaw.svg'],
+  ['Cline', ['CLINE', 'cline/1.0', 'cline_client'], 'cline.png'],
+  ['Kilo Code', ['KILOCODE', 'kilo_code/1.0', 'kilo agent'], 'kilo.svg'],
+  ['Pi', ['PI', 'pi_coding_agent/1.0', 'pi coding agent'], 'pi.svg', 'pi-dark.svg'],
+  ['Command Code', ['COMMANDCODE', 'command_code/1.0', 'command code client'], 'command-code.png'],
+] as const) test(`${name} aliases retain the product label and correct theme assets`, () => {
+  for (const alias of aliases) {
+    const brand = graphBrand(alias, 'agent');
+    assert.equal(brand.name, name, alias);
+    assert.equal(brand.label, name, alias);
+    assert.equal(brand.src, `assets/clients/${logo}`, alias);
+    assert.equal(brand.darkSrc, darkLogo ? `assets/clients/${darkLogo}` : undefined, alias);
+    for (const src of [brand.src, brand.darkSrc].filter(Boolean)) {
+      assert.ok(existsSync(new URL(`../../extension/shared/${src}`, import.meta.url)), `${src} is bundled`);
+    }
+  }
+});
+
+test('new agent brands require a product-name boundary and never match browser names', () => {
+  for (const name of ['ClaudeCoder', 'OpenClawfish', 'Clinewise', 'Kilocodebase', 'Pilot', 'CommandCoder', 'my-openclaw', 'my-cline', 'my-command-code']) {
+    assert.equal(graphBrand(name, 'agent').label, 'Other agent', name);
+    assert.equal(graphBrand(name, 'agent').src, 'assets/clients/other-agent.svg', name);
+  }
+  for (const name of ['Claude Code', 'OpenClaw', 'Cline', 'Kilo Code', 'Pi', 'Command Code']) {
+    assert.equal(graphBrand(name, 'browser', 'chromium').label, 'Unknown Chromium', name);
+    assert.equal(graphBrand(name, 'browser', 'firefox').label, 'Unknown Firefox', name);
+  }
+  assert.equal(graphBrand('Claude', 'agent').name, 'Claude', 'desktop Claude remains distinct from Claude Code');
+});
+
 test('graph brands resolve reported names and use explicit fallbacks for unknown clients and browser engines', () => {
-  const agents = ['Claude', 'Codex', 'Cursor', 'OpenCode', 'Antigravity', 'Muse Code', 'Hermes'];
+  const agents = ['Claude', 'Claude Code', 'Codex', 'Cursor', 'OpenCode', 'Antigravity', 'Muse Code', 'Hermes', 'OpenClaw', 'Cline', 'Kilo Code', 'Pi', 'Command Code'];
   const browsers = ['Chrome', 'Chromium', 'Edge', 'Brave', 'Helium', 'Vivaldi', 'Arc', 'Dia', 'Firefox', 'Tor', 'Zen'];
   for (const [kind, names] of [['agent', agents], ['browser', browsers]] as const) {
     for (const name of names) {
@@ -17,7 +49,7 @@ test('graph brands resolve reported names and use explicit fallbacks for unknown
       }
     }
   }
-  for (const [name, expected, label = name] of [['claude-code', 'Claude'], ['codex-mcp-client', 'Codex'], ['cursor-vscode', 'Cursor'], ['opencode', 'OpenCode'], ['Google Antigravity', 'Antigravity'], ['muse-code', 'Muse Code'], ['Meta Muse', 'Muse Code'], ['muse-spark-1.3-contributor', 'Muse Code'], ['MuseSpark', 'Muse Code'], ['tbh', 'Muse Code', 'Muse Code'], ['tbh:tui', 'Muse Code', 'Muse Code'], ['tbh:exec', 'Muse Code', 'Muse Code'], ['tbh:desktop', 'Muse Code', 'Muse Code'], ['hermes-agent', 'Hermes', 'Hermes'], ['hermes-probe', 'Hermes', 'Hermes'], ['Hermes Desktop', 'Hermes', 'Hermes']]) {
+  for (const [name, expected, label = name] of [['claude-code', 'Claude Code', 'Claude Code'], ['claude-ai', 'Claude'], ['openclaw', 'OpenClaw', 'OpenClaw'], ['Cline', 'Cline'], ['kilo', 'Kilo Code', 'Kilo Code'], ['kilo-code', 'Kilo Code', 'Kilo Code'], ['pi-coding-agent', 'Pi', 'Pi'], ['command-code', 'Command Code', 'Command Code'], ['codex-mcp-client', 'Codex'], ['cursor-vscode', 'Cursor'], ['opencode', 'OpenCode'], ['Google Antigravity', 'Antigravity'], ['muse-code', 'Muse Code'], ['Meta Muse', 'Muse Code'], ['muse-spark-1.3-contributor', 'Muse Code'], ['MuseSpark', 'Muse Code'], ['tbh', 'Muse Code', 'Muse Code'], ['tbh:tui', 'Muse Code', 'Muse Code'], ['tbh:exec', 'Muse Code', 'Muse Code'], ['tbh:desktop', 'Muse Code', 'Muse Code'], ['hermes-agent', 'Hermes', 'Hermes'], ['hermes-probe', 'Hermes', 'Hermes'], ['Hermes Desktop', 'Hermes', 'Hermes']]) {
     assert.equal(graphBrand(name, 'agent')?.name, expected);
     assert.equal(graphBrand(name, 'agent').label, label);
   }
@@ -25,7 +57,7 @@ test('graph brands resolve reported names and use explicit fallbacks for unknown
     assert.equal(graphBrand(name, 'browser')?.name, expected);
     assert.equal(graphBrand(name, 'browser').label, name);
   }
-  for (const name of ['', 'My agent', 'Kilobyte', 'Cursorless', 'Claudeish', 'Chrome']) {
+  for (const name of ['', 'My agent', 'Kilobyte', 'Cursorless', 'Claudeish', 'Chrome', 'cli', 'mcp', 'pixel', 'Clinewise', 'Commander']) {
     const brand = graphBrand(name, 'agent');
     assert.equal(brand.label, 'Other agent');
     assert.equal(brand.src, 'assets/clients/other-agent.svg');

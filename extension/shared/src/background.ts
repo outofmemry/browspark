@@ -559,6 +559,9 @@ api.runtime.onMessage.addListener((msg: PopupMsg, sender, reply) => {
         if (!shareAll) for (const id of [...attached]) if (!shared.has(id)) await detach(id);
         await api.storage.local.set({ shareAll });
         pushTabs(); break;
+      case 'stopAgents':
+        if (ws?.readyState !== WebSocket.OPEN) throw new Error('Not connected to the companion');
+        evt('agents.stop', {}); break;
       case 'checkUpdate': await checkForUpdates(true); break;
       case 'installUpdate':
         if (msg.path !== undefined && (typeof msg.path !== 'string' || msg.path.length > 4096)) throw new Error('Invalid folder path');
