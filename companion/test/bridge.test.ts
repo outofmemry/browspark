@@ -123,6 +123,49 @@ async function publishTabs(bridge: Bridge, ws: WebSocket, tabs = [nativeTab()]) 
 }
 const nextRequest = (ws: WebSocket) => new Promise<Req>((resolve) => ws.once('message', (data) => resolve(JSON.parse(data.toString()))));
 
+test('agents.stop identifies the sending browser and preserves browser access and pending requests', async () => {
+  const bridge = new Bridge(0); await bridge.listen();
+  try {
+    const a = await connectBrowser(bridge, 'stop-chrome'), b = await connectBrowser(bridge, 'stop-firefox');
+    await publishTabs(bridge, a.ws); await publishTabs(bridge, b.ws);
+    const tabs = [...bridge.tabs], events: BridgeConnection[] = [], detached: unknown[] = [];
+    bridge.on('agents.stop', (info) => events.push(info));
+    bridge.on('detached', (event) => detached.push(event));
+    const received = nextRequest(a.ws), pending = bridge.cdp(a.info.tabs[0].id, 'Page.enable');
+    const request = await received;
+    const stopped = new Promise<BridgeConnection>((resolve) => bridge.once('agents.stop', resolve));
+    // A payload must not be able to impersonate the other browser.
+    b.ws.send(JSON.stringify({ event: 'agents.stop', params: { browserId: a.info.id } }));
+    assert.equal(await stopped, b.info);
+    assert.deepEqual(events, [b.info]);
+    assert.deepEqual(detached, []);
+    assert.deepEqual(bridge.tabs, tabs);
+    assert.equal(bridge.connections().length, 2);
+    a.ws.send(JSON.stringify({ id: request.id, result: { ok: true } }));
+    assert.deepEqual(await pending, { ok: true });
+
+    const repeated = new Promise<BridgeConnection>((resolve) => bridge.once('agents.stop', resolve));
+    a.ws.send(JSON.stringify({ event: 'agents.stop', params: {} }));
+    assert.equal(await repeated, a.info);
+    assert.deepEqual(events, [b.info, a.info]);
+  } finally { bridge.close(); }
+});
+
+test('agents.stop requires a completed extension handshake', async () => {
+  const bridge = new Bridge(0); await bridge.listen();
+  const events: BridgeConnection[] = [];
+  bridge.on('agents.stop', (info) => events.push(info));
+  try {
+    const ws = new WebSocket(`ws://127.0.0.1:${bridge.port}`);
+    await open(ws);
+    const closing = closed(ws);
+    ws.send(JSON.stringify({ event: 'agents.stop', params: {} }));
+    assert.equal(await closing, 4001);
+    assert.deepEqual(events, []);
+    assert.equal(bridge.connected, false);
+  } finally { bridge.close(); }
+});
+
 test('multiple browser extensions isolate colliding tab ids, commands, events, downloads and policies', async () => {
   const bridge = new Bridge(0); await bridge.listen();
   try {
