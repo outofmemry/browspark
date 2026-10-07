@@ -146,6 +146,7 @@ function favicon(t: TabInfo) {
 
 // ---------- shell ----------
 const NAV: [string, keyof typeof I, string][] = [['overview', 'home', 'Overview'], ['tabs', 'tabs', 'Tabs'], ['graph', 'graph', 'Graph'], ['tools', 'tools', 'Tools'], ['activity', 'activity', 'Activity'], ['settings', 'settings', 'Settings']];
+/** Update the dashboard's shared navigation, connection status, version, update prompt, and theme controls in place. */
 function renderShell(s: State) {
   $('ver').textContent = `v${s.extensionVersion}`;
   $('crumb').textContent = NAV.find(([r]) => r === route)?.[2] ?? 'Overview';
@@ -173,7 +174,11 @@ const empty = (ic: keyof typeof I, title: string, sub?: string, action?: Node) =
 const stopResume = (s: State) => s.stopped
   ? h('button', { class: 'btn primary', disabled: connectionBusy(s), 'aria-busy': String(connectionBusy(s)), onclick: () => changeConnection({ type: 'connect' }) }, icon('play'), 'Resume access')
   : h('button', { class: 'btn danger', disabled: !s.connected && !s.connecting, onclick: () => changeConnection({ type: 'stop' }), title: 'Detach from this profile’s tabs and disconnect this extension' }, icon('stop'), 'Stop access');
-// The companion asks for confirmation in a system dialog, which no page or extension can answer for the user.
+/**
+ * Request that the companion stop its agents, then refresh the dashboard even if sending fails. The companion asks
+ * for confirmation in a system dialog, which no page or extension can answer for the user. Return immediately; the
+ * temporary status records a sent request, not a confirmed stop or agent exits.
+ */
 const stopAgents = () => {
   ask({ type: 'stopAgents' }).then(() => { ui.agentsStopped = Date.now(); }, () => {}).then(() => ask({ type: 'getState' })).then(paint);
 };
@@ -587,6 +592,7 @@ function viewActivity(s: State) {
 }
 
 const SETTINGS_SECTIONS: [string, string][] = [['set-companion', 'Companion'], ['set-updates', 'Updates'], ['set-dashboard', 'Dashboard'], ['set-clients', 'Other clients'], ['set-developer', 'Developer browser'], ['extensions-card', 'Other extensions'], ['set-behavior', 'Browser behavior'], ['set-privacy', 'Privacy'], ['set-stop', 'Emergency stop']];
+/** Build the settings page and its action handlers, including profile access controls and the companion-wide agent stop. */
 function viewSettings(s: State) {
   const port = h('input', { id: 'port', type: 'number', min: 1, max: 65535, 'aria-label': 'Bridge port', value: String(s.port), class: 'mono' }) as HTMLInputElement;
   const save = () => changeConnection({ type: 'setConfig', port: Number(inputValue('port')) || 9223 });
