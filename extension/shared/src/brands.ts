@@ -5,6 +5,7 @@ type GraphBrand = { name: string; label: string; src: string; darkSrc?: string }
 // internal codename with no user-facing meaning (e.g. tbh -> Muse Code).
 const brands: Record<'agent' | 'browser', [RegExp, string, string, string?, string?][]> = {
   agent: [
+    [/^claude[\s_-]?code(?:[\s_/-]|$)/i, 'Claude Code', 'clients/claude.png', undefined, 'Claude Code'],
     [/^claude(?:[\s_/-]|$)/i, 'Claude', 'clients/claude.png'],
     [/^(?:openai[\s_-])?codex(?:[\s_/-]|$)/i, 'Codex', 'clients/codex.svg'],
     [/^cursor(?:[\s_/-]|$)/i, 'Cursor', 'clients/cursor.svg', 'clients/cursor-dark.svg'],
@@ -13,6 +14,11 @@ const brands: Record<'agent' | 'browser', [RegExp, string, string, string?, stri
     [/^(?:meta[\s_-])?muse(?:[\s_-]?(?:code|spark))?(?:[\s_/-]|$)/i, 'Muse Code', 'clients/muse.svg'],
     [/^tbh(?:$|[:\s_./-])/i, 'Muse Code', 'clients/muse.svg', undefined, 'Muse Code'],
     [/^hermes(?:[\s_/-]|$)/i, 'Hermes', 'clients/hermes.png', undefined, 'Hermes'],
+    [/^open[\s_-]?claw(?:[\s_/-]|$)/i, 'OpenClaw', 'clients/openclaw.svg', undefined, 'OpenClaw'],
+    [/^cline(?:[\s_/-]|$)/i, 'Cline', 'clients/cline.png', undefined, 'Cline'],
+    [/^kilo(?:[\s_-]?code)?(?:[\s_/-]|$)/i, 'Kilo Code', 'clients/kilo.svg', undefined, 'Kilo Code'],
+    [/^pi(?:[\s_-]coding[\s_-]agent)?(?:[\s_/-]|$)/i, 'Pi', 'clients/pi.svg', 'clients/pi-dark.svg', 'Pi'],
+    [/^command[\s_-]?code(?:[\s_/-]|$)/i, 'Command Code', 'clients/command-code.png', undefined, 'Command Code'],
   ],
   browser: [
     [/^(?:google\s+)?chrome(?:[\s/]|$)/i, 'Chrome', 'browsers/chrome.svg'],

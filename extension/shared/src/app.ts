@@ -103,7 +103,7 @@ let route = location.hash.replace(/^#\/?/, '') || 'overview';
 let editing = false;
 let connectionAction: 'connect' | 'stop' | undefined;
 let connectionEpoch = 0;
-const ui = { search: '', tabFilter: 'all' as 'all' | 'shared' | 'available', logFilter: 'all' as 'all' | 'errors', theme: 'system', setupClient: 'claude', setupOpen: undefined as boolean | undefined, toolSearch: '', toolFilter: 'all' as 'all' | 'on' | 'off', expanded: new Set<string>(), updateOpen: false, updatePath: '' };
+const ui = { search: '', tabFilter: 'all' as 'all' | 'shared' | 'available', logFilter: 'all' as 'all' | 'errors', theme: 'system', setupClient: 'claude', setupOpen: undefined as boolean | undefined, toolSearch: '', toolFilter: 'all' as 'all' | 'on' | 'off', expanded: new Set<string>(), updateOpen: false, updatePath: '', agentsStopped: 0 };
 try { ui.theme = localStorage.getItem('theme') || 'system'; ui.setupClient = localStorage.getItem('setupClient') || 'claude'; } catch {}
 applyTheme();
 
@@ -157,15 +157,6 @@ function renderShell(s: State) {
     const n = r === 'tabs' ? s.tabs.filter((t) => t.shared && canShare(t)).length : r === 'tools' ? s.toolCatalog.length : 0;
     return h('a', { href: `#/${r}`, class: route === r ? 'on' : '', 'aria-current': route === r ? 'page' : undefined, 'data-key': r }, icon(ic), h('span', { class: 'nav-text' }, label), n ? h('span', { class: 'n' }, String(n)) : null);
   }));
-  const me = s.graph?.browsers.find((b) => b.id === s.graph!.thisBrowserId);
-  const engine = s.browserEngine ?? 'chromium';
-  const brand = me ? browserBrand(s, me) : graphBrand('', 'browser', engine);
-  patch($('profile'), h('span', { class: 'profile-logo', 'data-key': brand.src }, brandImage(brand, 'profile-img')),
-    h('div', { class: 'profile-copy' }, h('div', { class: 'profile-name', title: me?.name }, me ? brand.label : 'This browser profile'), h('div', { class: 'profile-meta' }, me ? `This profile · ${plural(me.sharedTabs, 'tab')} shared` : engine === 'firefox' ? 'Firefox extension' : 'Chromium extension')));
-  const [cls, l1, l2] = s.connecting ? ['pending', 'Reconnecting…', `127.0.0.1:${s.port}`] : s.connected ? ['ok', 'Connected', `127.0.0.1:${s.port} · ${ago(s.connectedAt!)}`] : s.lastError ? ['bad', 'Disconnected', s.lastError] : s.stopped ? ['bad', 'Access paused', 'Resume when you’re ready'] : ['', 'Disconnected', 'Retry from Settings'];
-  $('conn').className = `conn ${cls}`;
-  $('conn').setAttribute('aria-busy', String(s.connecting));
-  patch($('conn'), s.connecting ? spinner() : h('span', { class: 'dot' }), h('div', {}, h('div', { class: 'l1' }, l1), h('div', { class: 'l2', title: cls === 'bad' ? l2 : undefined, ...(s.connected && { 'data-ago': String(s.connectedAt), 'data-ago-fmt': `127.0.0.1:${s.port} · {ago}` }) }, l2)));
   patch($('update-slot'), updateSidebar(s));
   patch($('theme'), ...([['system', 'monitor'], ['light', 'sun'], ['dark', 'moon']] as [string, keyof typeof I][]).map(([t, ic]) =>
     h('button', { class: ui.theme === t ? 'on' : '', title: `${t[0].toUpperCase()}${t.slice(1)} theme`, 'aria-label': `${t[0].toUpperCase()}${t.slice(1)} theme`, 'aria-pressed': String(ui.theme === t), onclick: () => { ui.theme = t; try { localStorage.setItem('theme', t); } catch {} applyTheme(); repaint(); } }, icon(ic))));
@@ -182,6 +173,11 @@ const empty = (ic: keyof typeof I, title: string, sub?: string, action?: Node) =
 const stopResume = (s: State) => s.stopped
   ? h('button', { class: 'btn primary', disabled: connectionBusy(s), 'aria-busy': String(connectionBusy(s)), onclick: () => changeConnection({ type: 'connect' }) }, icon('play'), 'Resume access')
   : h('button', { class: 'btn danger', disabled: !s.connected && !s.connecting, onclick: () => changeConnection({ type: 'stop' }), title: 'Detach from this profile’s tabs and disconnect this extension' }, icon('stop'), 'Stop access');
+const stopAgents = (s: State) => {
+  const n = s.graph?.agents.length;
+  if (!confirm(`Stop ${n === undefined ? 'every agent' : n === 1 ? 'the 1 agent' : `all ${n} agents`} connected to 127.0.0.1:${s.port}? Agent processes, including background jobs, are ended. Desktop apps are only disconnected.`)) return;
+  ask({ type: 'stopAgents' }).then(() => { ui.agentsStopped = Date.now(); }, () => {}).then(() => ask({ type: 'getState' })).then(paint);
+};
 const sw = (attrs: Record<string, unknown>) => h('label', { class: 'switch' }, h('input', { type: 'checkbox', role: 'switch', ...attrs }));
 const settingRow = (title: string, body: (Node | string | null)[], ...ctl: (Node | null)[]) => h('div', { class: 'setting' }, h('div', { class: 'setting-copy' }, h('h3', {}, title), ...body), h('div', { class: 'ctl' }, ...ctl));
 
@@ -636,6 +632,9 @@ function viewSettings(s: State) {
             sw({ checked: s.activityLog, 'aria-label': 'Activity log', onchange: (e: Event) => ask({ type: 'setActivityLog', on: checked(e) }).then(paint) }))),
         h('section', { class: 'card danger-card', id: 'set-stop' },
           cardHead('power', 'Emergency stop'),
+          settingRow('Stop all agents', [h('p', {}, `Ends every agent process connected to the companion on port ${s.port}, including ones running background jobs (for example an OpenCode server or Hermes). Desktop apps such as Claude or Cursor are disconnected rather than closed. Browsers stay connected.`),
+            Date.now() - ui.agentsStopped < 10_000 ? h('p', { class: 'hint', role: 'status' }, 'Stop sent. Agents leave the Graph as they exit.') : null],
+            h('button', { id: 'stop-agents', class: 'btn danger', disabled: !s.connected, title: s.connected ? 'End all agent processes using the companion' : 'Connect to the companion first', onclick: () => stopAgents(s) }, icon('stop'), 'Stop all agents')),
           settingRow(s.stopped ? 'This profile’s access is stopped' : 'Stop access to this profile', [h('p', {}, 'Detaches this profile’s tabs, clears sharing, turns off Share everything and disconnects this extension. Other browser profiles and developer sessions remain available. Resume reconnects; share tabs again to restore access.')], stopResume(s))),
         h('p', { class: 'page-foot' }, `Browspark extension v${s.extensionVersion}${s.companionVersion ? ` · companion v${s.companionVersion}` : ''} · Browsers restrict automation on internal pages and extension stores.`))));
 }

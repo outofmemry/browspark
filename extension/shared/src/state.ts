@@ -81,6 +81,8 @@ export type PopupMsg =
   | { type: 'setToolsEnabled'; names: string[]; enabled: boolean }
   | { type: 'connect' }
   | { type: 'stop' }
+  /** End every agent process connected to the companion, background jobs included. */
+  | { type: 'stopAgents' }
   | { type: 'clearLog' }
   | { type: 'focusTab'; tabId: number }
   | { type: 'checkUpdate' }

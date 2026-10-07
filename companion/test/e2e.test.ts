@@ -556,11 +556,11 @@ test('Settings Reconnect replaces a live connection and preserves access', async
     await waitFor(`document.querySelector('#reconnect') && !document.querySelector('#reconnect').disabled`);
     const immediate = await evaluate(`(() => {
       document.querySelector('#reconnect').click();
-      return { button: document.querySelector('#reconnect').textContent.trim(), disabled: document.querySelector('#reconnect').disabled, header: document.querySelector('#session-status').textContent.trim(), sidebar: document.querySelector('#conn').textContent.includes('Reconnecting…'), settings: [...document.querySelectorAll('.setting')].find(row => row.querySelector('h3')?.textContent === 'Connection').querySelector('p').textContent.includes('Reconnecting…') };
+      return { button: document.querySelector('#reconnect').textContent.trim(), disabled: document.querySelector('#reconnect').disabled, header: document.querySelector('#session-status').textContent.trim(), settings: [...document.querySelectorAll('.setting')].find(row => row.querySelector('h3')?.textContent === 'Connection').querySelector('p').textContent.includes('Reconnecting…') };
     })()`);
-    assert.deepEqual(immediate, { button: 'Reconnecting…', disabled: true, header: 'Reconnecting…', sidebar: true, settings: true });
+    assert.deepEqual(immediate, { button: 'Reconnecting…', disabled: true, header: 'Reconnecting…', settings: true });
     await waitFor(`chrome.runtime.sendMessage({type:'getState'}).then(state => state.connected && !state.connecting && state.connectedAt > ${before.connectedAt})`);
-    await waitFor(`document.querySelector('#session-status').textContent.trim() === 'Connected' && document.querySelector('#conn .l1').textContent === 'Connected' && document.querySelector('#main').textContent.includes('Connected for') && !document.querySelector('#reconnect').disabled`);
+    await waitFor(`document.querySelector('#session-status').textContent.trim() === 'Connected' && document.querySelector('#main').textContent.includes('Connected for') && !document.querySelector('#reconnect').disabled`);
     const after = await evaluate('chrome.runtime.sendMessage({type:"getState"})');
     assert.deepEqual(after.tabs.filter((tab: any) => tab.shared).map((tab: any) => tab.id).sort(), before.tabs.filter((tab: any) => tab.shared).map((tab: any) => tab.id).sort());
     assert.deepEqual(after.disabledTools, before.disabledTools);
@@ -596,7 +596,7 @@ test('an unanswered companion handshake stays reconnecting and shows rejection',
     await evaluate(`chrome.runtime.sendMessage({type:'setConfig',port:${(delayed.address() as { port: number }).port}})`);
     const socket = await hello; // Deliberately send no companion request: an open WebSocket is not a completed handshake.
     await waitFor(`chrome.runtime.sendMessage({type:'getState'}).then(state => state.connecting && !state.connected)`);
-    await waitFor(`document.querySelector('#reconnect')?.disabled && ['#session-status', '#conn'].every(selector => document.querySelector(selector).textContent.includes('Reconnecting…'))`);
+    await waitFor(`document.querySelector('#reconnect')?.disabled && document.querySelector('#session-status').textContent.includes('Reconnecting…')`);
     assert.deepEqual(await evaluate(`[document.querySelector('#port').value, document.activeElement.id]`), ['54321', 'port'], 'connection updates preserve Settings drafts and focus');
     await evaluate(`document.querySelector('#nav a[href="#/overview"]').click()`);
     await waitFor(`document.querySelector('.connection-panel')?.textContent.includes('Reconnecting…')`);
@@ -604,7 +604,7 @@ test('an unanswered companion handshake stays reconnecting and shows rejection',
     socket.close(4002, 'test rejection');
     await waitFor(`chrome.runtime.sendMessage({type:'getState'}).then(state => !state.connecting && !state.connected && state.stopped && state.lastError === 'test rejection')`);
     await waitFor(`document.querySelector('#main').textContent.includes('test rejection') && !document.querySelector('#reconnect').disabled`);
-    assert.equal(await evaluate(`['#session-status', '#conn'].some(selector => document.querySelector(selector).textContent.includes('Reconnecting…'))`), false);
+    assert.equal(await evaluate(`document.querySelector('#session-status').textContent.includes('Reconnecting…')`), false);
     await new Promise((resolve) => setTimeout(resolve, 1200));
     assert.equal(attempts, 1, 'rejected connections must not keep retrying while stopped');
   } finally {
@@ -683,14 +683,14 @@ test('automatic retries stay visibly disconnected until the companion responds',
     const retrySocket = await retry; // Keep the automatic retry open without completing its handshake.
     await waitFor(`chrome.runtime.sendMessage({type:'getState'}).then(state => !state.connected && !state.connecting && !!state.lastError)`);
     await evaluate(`document.querySelector('#nav a[href="#/settings"]').click()`);
-    await waitFor(`document.querySelector('#session-status').textContent.trim() === 'Disconnected' && document.querySelector('#conn .l1').textContent === 'Disconnected' && document.querySelector('#reconnect') && !document.querySelector('#reconnect').disabled && [...document.querySelectorAll('.setting')].find(row => row.querySelector('h3')?.textContent === 'Connection')?.querySelector('p')?.textContent.startsWith('Disconnected')`);
+    await waitFor(`document.querySelector('#session-status').textContent.trim() === 'Disconnected' && document.querySelector('#reconnect') && !document.querySelector('#reconnect').disabled && [...document.querySelectorAll('.setting')].find(row => row.querySelector('h3')?.textContent === 'Connection')?.querySelector('p')?.textContent.startsWith('Disconnected')`);
     await evaluate(`document.querySelector('#nav a[href="#/overview"]').click()`);
-    await waitFor(`document.querySelector('.connection-panel h2')?.textContent === 'Disconnected' && document.querySelector('#session-status').textContent.trim() === 'Disconnected' && document.querySelector('#conn .l1').textContent === 'Disconnected'`);
+    await waitFor(`document.querySelector('.connection-panel h2')?.textContent === 'Disconnected' && document.querySelector('#session-status').textContent.trim() === 'Disconnected'`);
     assert.equal(await evaluate(`document.querySelector('#main').textContent.includes('Reconnecting…')`), false);
 
     retrySocket.send(JSON.stringify({ id: 2, method: 'tabs.list' }));
     await waitFor(`chrome.runtime.sendMessage({type:'getState'}).then(state => state.connected && !state.connecting && !state.lastError)`);
-    await waitFor(`document.querySelector('#session-status').textContent.trim() === 'Connected' && document.querySelector('#conn .l1').textContent === 'Connected' && document.querySelector('.connection-panel h2')?.textContent === 'Your browser is connected'`);
+    await waitFor(`document.querySelector('#session-status').textContent.trim() === 'Connected' && document.querySelector('.connection-panel h2')?.textContent === 'Your browser is connected'`);
   } finally {
     clearTimeout(retryTimer);
     for (const socket of companion.clients) socket.terminate();

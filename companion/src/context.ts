@@ -24,7 +24,15 @@ export const refArg = z.string().describe('Element ref from browser_snapshot, e.
 export const pageArgs = { offset: z.number().int().min(0).optional().describe('Pagination offset, default 0'), limit: z.number().int().min(1).max(500).optional().describe('Page size, default 50') };
 
 /** One connected agent (one MCP transport). Everything that must not leak between agents hangs off this. */
-export interface ClientState { id: string; name: string; initialized?: boolean; ownedTabs: Set<number>; recording?: { tabId: number; name: string; steps: import('./devtools/recorder.ts').Step[]; startedAt: number } }
+export interface ClientState {
+  id: string; name: string; initialized?: boolean; ownedTabs: Set<number>; recording?: { tabId: number; name: string; steps: import('./devtools/recorder.ts').Step[]; startedAt: number };
+  /** The agent process behind this connection, when it could be found (see agents.ts). */
+  process?: import('./agents.ts').AgentIdentity;
+  /** Pending process lookup, started while the client's socket is still open. */
+  identify?: Promise<import('./agents.ts').AgentIdentity | undefined>;
+  /** Close this client's transport (HTTP sessions). */
+  disconnect?: () => Promise<void>;
+}
 export const clients = new Map<string, ClientState>();
 export const clientStore = new AsyncLocalStorage<ClientState>();
 /** The agent whose tool call is currently executing (undefined outside a tool call). */
