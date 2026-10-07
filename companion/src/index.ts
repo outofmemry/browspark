@@ -65,6 +65,10 @@ const page = new Page(sessions), capture = new Capture(sessions);
 /** Each MCP transport gets its own McpServer; browser state, capture buffers, and the tool registry are shared. */
 let clientSeq = 0;
 const serverClients = new WeakMap<McpServer, ClientState>();
+/**
+ * Create an unconnected MCP server and register its client and tools, using `label` until client identification.
+ * Initialization waits for any process lookup to settle; closing removes the client and starts inspection cleanup.
+ */
 function buildServer(label: string): McpServer {
   const server = new McpServer({ name: 'browspark', version: VERSION }, { instructions: 'Prefer background-tab interaction. Keep the assigned tabId and pass it to subsequent tools; do not activate tabs or focus windows just to interact. Work in background is ON by default in the extension. Never bypass it with window.focus(), popups, or raw protocol commands. Verify input effects with a fresh snapshot. If an operation cannot work in the background, ask the user to select the agent tab or temporarily disable Settings → Work in background. Check page state before retrying to avoid duplicate actions.' });
   const client: ClientState = { id: `c${++clientSeq}`, name: label, ownedTabs: new Set() };
@@ -100,6 +104,11 @@ const httpStreams = new Map<string, { open: number; gone?: ReturnType<typeof set
 const HTTP_STREAM_GRACE_MS = Number(process.env.BROWSPARK_HTTP_GRACE_MS ?? 60_000);
 // Populate the extension's catalog before any agent connects; reuse this server for the first HTTP client.
 let firstHttpServer = owner && httpOnly ? buildServer('http') : undefined;
+/**
+ * Route MCP HTTP requests. Without a known session, create a transport on POST or reply 400 for other methods.
+ * Start peer identification for new clients and expire inactive sessions after their event stream has closed.
+ * Connection and request-handling rejections propagate to the bridge's HTTP error handler.
+ */
 bridge.mcpHandler = async (req, res) => {
   const sid = req.headers['mcp-session-id'];
   let transport = typeof sid === 'string' ? httpSessions.get(sid) : undefined;
@@ -146,11 +155,20 @@ if (owner) {
   console.error(`browspark: ready on ws://127.0.0.1:${bridge.port}; MCP over HTTP at ${upstreamUrl}`);
 } else await relayTo();
 
+/**
+ * Attach a stdio relay that forwards tool requests to the existing companion and can take over its port.
+ * Resolve when the stdio transport connects; upstream connection failures surface through tool requests.
+ * Stdio connection failures reject this call.
+ */
 async function relayTo() {
   const relay = new Server({ name: 'browspark', version: VERSION }, { capabilities: { tools: {} } });
   // Connect upstream only once we know who the downstream client is, so the owner can name this agent correctly.
   const who = () => relay.getClientVersion()?.name ?? 'relay';
   let upstream: Promise<Client> | undefined, tookOver = false;
+  /**
+   * Return an upstream client, taking over the port locally if the companion is unavailable and the port is free.
+   * Try up to 10 times with 500 ms pauses; throw if exhausted or if an in-process connection fails after takeover.
+   */
   const connect = async (): Promise<Client> => {
     let last: unknown;
     for (let attempt = 0; attempt < 10; attempt++) {

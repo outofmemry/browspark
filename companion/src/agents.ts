@@ -39,6 +39,7 @@ const INTERPRETER = /^(?:node|bun|deno|tsx|npx|bunx|uv|uvx|python[\d.]*)$/i;
 const RELAY = /browspark|companion\/src\/index\.ts/;
 // Processes that merely launch an MCP server for an agent: the walk continues through these and stops at anything else,
 // so an unrelated ancestor (a terminal, or the agent whose shell ran a script) is never taken for the client.
+/** Whether a process command line is recognized as a launcher through which agent lookup may continue. */
 function launcher(args: string): boolean {
   if (RELAY.test(args) || /\b(?:npx|npm)-cli\.js\b/.test(args)) return true;
   const [exe = '', sub = ''] = args.trim().split(/\s+/);
@@ -60,8 +61,10 @@ export interface AgentIdentity {
   relay: boolean;
 }
 
+/** Take a slash-delimited basename, removing trailing slashes and a recognized script or executable extension. */
 const base = (p: string) => p.replace(/\/+$/, '').split('/').pop()!.replace(/\.(?:js|mjs|cjs|ts|py|exe)$/i, '');
 
+/** Identify a product from a process command line, preferring known macOS app bundles; return undefined if none matches. */
 function match(args: string): { app: string; gui: boolean } | undefined {
   const bundle = /\/([^/]+)\.app\/Contents\/MacOS\//.exec(args)?.[1];
   if (bundle) { const hit = APPS.find(([re]) => re.test(bundle)); if (hit) return { app: hit[1], gui: true }; }
@@ -74,6 +77,7 @@ function match(args: string): { app: string; gui: boolean } | undefined {
   return undefined;
 }
 
+/** Read a process's parent PID and command line; return undefined on malformed output or lookup failure, including a 2-second timeout. */
 async function proc(pid: number): Promise<{ ppid: number; args: string } | undefined> {
   try {
     const { stdout } = await run('ps', ['-o', 'ppid=,args=', '-p', String(pid)], { timeout: 2000 });
@@ -82,7 +86,11 @@ async function proc(pid: number): Promise<{ ppid: number; args: string } | undef
   } catch { return undefined; }
 }
 
-/** Walk up from `pid`, through launchers only, to the nearest process that is a known agent. */
+/**
+ * Walk up from `pid`, through launchers only, to the nearest known agent, inspecting at most 12 processes.
+ * The returned `peer` is the starting PID. An unmatched relay returns an empty app and PID 0.
+ * Return undefined on Windows, for PIDs <= 1, on any process lookup failure, or when no agent or relay is found.
+ */
 export async function identifyProcess(pid: number): Promise<AgentIdentity | undefined> {
   if (process.platform === 'win32' || !(pid > 1)) return undefined;
   let relay = false;
@@ -98,7 +106,11 @@ export async function identifyProcess(pid: number): Promise<AgentIdentity | unde
   return relay ? { app: '', pid: 0, gui: false, peer: pid, relay } : undefined;
 }
 
-/** The process on the other end of a loopback connection to us, found by its local port. */
+/**
+ * Find the process owning an established loopback socket whose local port is `remotePort`
+ * (the remote port of the companion's accepted socket), excluding this process and PIDs <= 1.
+ * Return undefined on Windows, for port 0, if no match exists, or if lsof fails or times out after 3 seconds.
+ */
 export async function peerPid(remotePort: number): Promise<number | undefined> {
   if (process.platform === 'win32' || !remotePort) return undefined;
   try {
@@ -113,7 +125,11 @@ export async function peerPid(remotePort: number): Promise<number | undefined> {
   } catch { return undefined; }
 }
 
-/** Name generic clients after their process, and remember which process to end on Stop all agents. */
+/**
+ * Store the identity on `client` and replace a generic client name with the identified product.
+ * A conflicting specific name clears the stored app and PID but retains relay information.
+ * An undefined identity leaves the client unchanged.
+ */
 export function applyIdentity(client: ClientState, id: AgentIdentity | undefined) {
   if (!id) return;
   client.process = id;
@@ -125,7 +141,14 @@ export function applyIdentity(client: ClientState, id: AgentIdentity | undefined
   else if (!reported.includes(product)) client.process = { ...id, app: '', pid: 0 };
 }
 
-/** End every agent connected to this companion. Desktop apps and unidentified clients are disconnected instead. */
+/**
+ * Request termination of identified non-GUI agents, or their relay peers when no such agent is identified,
+ * and await each available disconnect callback. Each eligible PID is targeted once; this process is excluded.
+ * Send SIGTERM and schedule a SIGKILL check after 3 seconds without waiting for process exit.
+ * `killed` lists names with PIDs successfully sent SIGTERM; `disconnected` lists names for which no new
+ * signal attempt was made, including duplicate targets. Neither list confirms exit or disconnection.
+ * Signal errors and rejected disconnect promises are ignored; synchronous disconnect errors reject this call.
+ */
 export async function stopAllAgents(): Promise<{ killed: string[]; disconnected: string[] }> {
   const killed: string[] = [], disconnected: string[] = [];
   const targets = new Set<number>();
