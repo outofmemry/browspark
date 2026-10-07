@@ -19,6 +19,8 @@ function fixture(platform = 'linux') {
   const commands: Command[] = [], signals: [number, Signal][] = [];
   const timers: { callback: () => void; delay: number; unref: boolean }[] = [];
   const processes = new Map<number, string | Error>();
+  // /proc/<pid>/stat contents, read on Linux for a process's start time.
+  const stats = new Map<number, string>();
   const os = {
     lsof: '' as string | Error,
     kill: (_pid: number, _signal: Signal) => {},
@@ -33,6 +35,7 @@ function fixture(platform = 'linux') {
   const execFile = Object.assign(() => { throw new Error('Expected promisified execFile'); }, { [promisify.custom]: run });
   const dependencies: Record<string, unknown> = {
     'node:child_process': { execFile }, 'node:util': { promisify }, './context.ts': { clients },
+    'node:fs/promises': { readFile: async (path: string) => { const stat = stats.get(Number(/^\/proc\/(\d+)\/stat$/.exec(path)?.[1])); if (stat === undefined) throw new Error(`ENOENT: ${path}`); return stat; } },
   };
   const module = { exports: {} };
   const load = runInThisContext(`(function(require, module, exports, process, setTimeout) { ${source}\n})`);
@@ -46,7 +49,7 @@ function fixture(platform = 'linux') {
     const timer = { callback, delay, unref: false }; timers.push(timer);
     return { unref: () => { timer.unref = true; } };
   });
-  return { agents: module.exports as typeof import('../src/agents.ts'), clients, commands, signals, timers, processes, os };
+  return { agents: module.exports as typeof import('../src/agents.ts'), clients, commands, signals, timers, processes, stats, os };
 }
 const identity = (overrides: Partial<AgentIdentity> = {}): AgentIdentity => ({ app: 'OpenCode', pid: 42, gui: false, peer: 43, relay: false, ...overrides });
 const client = (name: string, process?: AgentIdentity): ClientState => ({ id: name, name, ownedTabs: new Set(), process });
@@ -204,22 +207,37 @@ describe('Stop all agents', () => {
     const f = fixture(); assert.deepEqual(await f.agents.stopAllAgents(), { killed: [], disconnected: [] });
     assert.deepEqual(f.signals, []); assert.deepEqual(f.timers, []);
   });
+  // /proc/<pid>/stat with `start` in field 22 (starttime), the process-instance identity checked before SIGKILL.
+  const stat = (pid: number, start: string) => `${pid} (agent) ${['S', ...Array<string>(18).fill('0'), start].join(' ')} 0 0`;
+  const flush = () => new Promise((r) => setTimeout(r, 0));
   test('terminates an agent once, closes every transport, and escalates only after a grace period', async () => {
     const f = fixture(), closed: string[] = [];
+    f.stats.set(42, stat(42, '1000'));
     for (const name of ['first', 'second']) {
       const c = client(name, identity()); c.disconnect = async () => { closed.push(name); }; f.clients.set(c.id, c);
     }
     assert.deepEqual(await f.agents.stopAllAgents(), { killed: ['first (pid 42)'], disconnected: ['second'] });
     assert.deepEqual(closed, ['first', 'second']); assert.deepEqual(f.signals, [[42, 'SIGTERM']]);
     assert.equal(f.timers.length, 1); assert.equal(f.timers[0].delay, 3000); assert.equal(f.timers[0].unref, true);
-    f.timers[0].callback();
-    assert.deepEqual(f.signals, [[42, 'SIGTERM'], [42, 0], [42, 'SIGKILL']]);
+    f.timers[0].callback(); await flush();
+    assert.deepEqual(f.signals, [[42, 'SIGTERM'], [42, 'SIGKILL']]);
   });
   test('does not escalate when the agent has already exited', async () => {
+    const f = fixture(); f.stats.set(42, stat(42, '1000')); f.clients.set('agent', client('agent', identity()));
+    await f.agents.stopAllAgents();
+    f.stats.delete(42); f.timers[0].callback(); await flush();
+    assert.deepEqual(f.signals, [[42, 'SIGTERM']]);
+  });
+  test('does not escalate when the PID now belongs to a different process', async () => {
+    const f = fixture(); f.stats.set(42, stat(42, '1000')); f.clients.set('agent', client('agent', identity()));
+    await f.agents.stopAllAgents();
+    f.stats.set(42, stat(42, '2000')); f.timers[0].callback(); await flush();
+    assert.deepEqual(f.signals, [[42, 'SIGTERM']]);
+  });
+  test('never schedules SIGKILL when the start time cannot be read', async () => {
     const f = fixture(); f.clients.set('agent', client('agent', identity()));
     await f.agents.stopAllAgents();
-    f.os.kill = () => { throw new Error('ESRCH'); }; f.timers[0].callback();
-    assert.deepEqual(f.signals, [[42, 'SIGTERM'], [42, 0]]);
+    assert.deepEqual(f.signals, [[42, 'SIGTERM']]); assert.deepEqual(f.timers, []);
   });
   test('survives signal failures and failed transport cleanup, then stops remaining clients', async () => {
     const f = fixture(), closed: string[] = [];

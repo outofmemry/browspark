@@ -173,9 +173,8 @@ const empty = (ic: keyof typeof I, title: string, sub?: string, action?: Node) =
 const stopResume = (s: State) => s.stopped
   ? h('button', { class: 'btn primary', disabled: connectionBusy(s), 'aria-busy': String(connectionBusy(s)), onclick: () => changeConnection({ type: 'connect' }) }, icon('play'), 'Resume access')
   : h('button', { class: 'btn danger', disabled: !s.connected && !s.connecting, onclick: () => changeConnection({ type: 'stop' }), title: 'Detach from this profile’s tabs and disconnect this extension' }, icon('stop'), 'Stop access');
-const stopAgents = (s: State) => {
-  const n = s.graph?.agents.length;
-  if (!confirm(`Stop ${n === undefined ? 'every agent' : n === 1 ? 'the 1 agent' : `all ${n} agents`} connected to 127.0.0.1:${s.port}? Agent processes, including background jobs, are ended. Desktop apps are only disconnected.`)) return;
+// The companion asks for confirmation in a system dialog, which no page or extension can answer for the user.
+const stopAgents = () => {
   ask({ type: 'stopAgents' }).then(() => { ui.agentsStopped = Date.now(); }, () => {}).then(() => ask({ type: 'getState' })).then(paint);
 };
 const sw = (attrs: Record<string, unknown>) => h('label', { class: 'switch' }, h('input', { type: 'checkbox', role: 'switch', ...attrs }));
@@ -632,9 +631,9 @@ function viewSettings(s: State) {
             sw({ checked: s.activityLog, 'aria-label': 'Activity log', onchange: (e: Event) => ask({ type: 'setActivityLog', on: checked(e) }).then(paint) }))),
         h('section', { class: 'card danger-card', id: 'set-stop' },
           cardHead('power', 'Emergency stop'),
-          settingRow('Stop all agents', [h('p', {}, `Ends every agent process connected to the companion on port ${s.port}, including ones running background jobs (for example an OpenCode server or Hermes). Desktop apps such as Claude or Cursor are disconnected rather than closed. Browsers stay connected.`),
-            Date.now() - ui.agentsStopped < 10_000 ? h('p', { class: 'hint', role: 'status' }, 'Stop sent. Agents leave the Graph as they exit.') : null],
-            h('button', { id: 'stop-agents', class: 'btn danger', disabled: !s.connected, title: s.connected ? 'End all agent processes using the companion' : 'Connect to the companion first', onclick: () => stopAgents(s) }, icon('stop'), 'Stop all agents')),
+          settingRow('Stop all agents', [h('p', {}, `Ends every agent process connected to the companion on port ${s.port}, including ones running background jobs (for example an OpenCode server or Hermes). Desktop apps such as Claude or Cursor are disconnected rather than closed. Browsers stay connected. You confirm in a system dialog on this computer.`),
+            Date.now() - ui.agentsStopped < 10_000 ? h('p', { class: 'hint', role: 'status' }, 'Confirm in the system dialog. Agents leave the Graph as they exit.') : null],
+            h('button', { id: 'stop-agents', class: 'btn danger', disabled: !s.connected, title: s.connected ? 'End all agent processes using the companion' : 'Connect to the companion first', onclick: stopAgents }, icon('stop'), 'Stop all agents')),
           settingRow(s.stopped ? 'This profile’s access is stopped' : 'Stop access to this profile', [h('p', {}, 'Detaches this profile’s tabs, clears sharing, turns off Share everything and disconnects this extension. Other browser profiles and developer sessions remain available. Resume reconnects; share tabs again to restore access.')], stopResume(s))),
         h('p', { class: 'page-foot' }, `Browspark extension v${s.extensionVersion}${s.companionVersion ? ` · companion v${s.companionVersion}` : ''} · Browsers restrict automation on internal pages and extension stores.`))));
 }
